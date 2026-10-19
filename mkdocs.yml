@@ -1,6 +1,6 @@
 site_name: vgi-rpc C
 site_description: C11 clients and servers for the Arrow IPC RPC protocol, built with nanoarrow.
-site_url: https://vgi-rpc-c.query.farm/
+site_url: https://vgi-rpc-c.pages.dev/
 repo_url: https://github.com/Query-farm/vgi-rpc-c
 repo_name: Query-farm/vgi-rpc-c
 edit_uri: edit/main/docs/

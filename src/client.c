@@ -177,7 +177,9 @@ int VgiClientRequestMetadata(struct VgiClient *c, const char *method, const char
     int rc = ArrowMetadataBuilderInit(out, metadata);
     const char *keys[] = {"vgi_rpc.method", VGI_RPC_PROTOCOL_KEY, VGI_RPC_PROTOCOL_VERSION_KEY,
                           VGI_RPC_REQUEST_VERSION_KEY};
-    const char *values[] = {method, c->protocol, c->version, "1"};
+    int transport_options = !strcmp(method, "__transport_options__");
+    const char *values[] = {method, transport_options ? NULL : c->protocol,
+                            transport_options ? NULL : c->version, "1"};
     for (int i = 0; !rc && i < 4; ++i)
         if (values[i] && *values[i] && !VgiMetadataGet(metadata, keys[i]).data)
             rc = VgiMetadataSet(out, keys[i], values[i]);
@@ -277,6 +279,30 @@ static int connect_socket(struct VgiClient *c) {
     if (!c->output) close(other);
     return c->input && c->output ? 0 : ENOMEM;
 }
+static int negotiate_shm(struct VgiClient *c, struct ArrowError *error) {
+    struct VgiAnnotatedBatch in = {0}, out = {0};
+    int rc = VgiRpcBatchInitNamed(&in.batch, "Empty", error);
+    if (!rc) rc = VgiBatchFinishRow(&in.batch, error);
+    if (!rc) rc = VgiMetadataSet(&in.metadata, "vgi_rpc.transport.shm", "true");
+    if (!rc) rc = VgiClientUnary(c, "__transport_options__", &in, &out);
+    struct ArrowStringView capability =
+        VgiMetadataGet((const char *)out.metadata.data, "vgi_rpc.transport.shm");
+    int supported = !rc && !out.batch.schema.n_children && capability.size_bytes == 4 &&
+                    !memcmp(capability.data, "true", 4);
+    /* Older peers may reject the synthetic method; the drained application
+     * error is safe to ignore. A broken connection cannot be reused. */
+    if (rc == ECANCELED) {
+        rc = 0;
+        VgiClientClearError(c);
+    }
+    if (!rc && supported) {
+        rc = VgiShmCreate(c->options.shared_memory_size, &c->shm, error);
+        if (!rc) VgiShmSetThreshold(c->shm, c->options.shared_memory_threshold);
+    }
+    VgiAnnotatedBatchReset(&in);
+    VgiAnnotatedBatchReset(&out);
+    return rc;
+}
 int VgiClientConnect(const struct VgiClientOptions *options, struct VgiClient **out,
                      struct ArrowError *error) {
     if (!options || !out || *out || !options->protocol || !*options->protocol ||
@@ -293,27 +319,25 @@ int VgiClientConnect(const struct VgiClientOptions *options, struct VgiClient **
     c->resolver = VgiRpcServerNew();
     int rc = c->protocol && c->version && c->resolver ? 0 : ENOMEM;
     if (!rc) rc = VgiRpcServerSetExternal(c->resolver, options->external);
-    if (!rc && options->shared_memory_size) {
-        rc = VgiShmCreate(options->shared_memory_size, &c->shm, error);
-        if (!rc) VgiShmSetThreshold(c->shm, options->shared_memory_threshold);
-    }
     if (!rc)
         rc = options->transport == VGI_CLIENT_STDIO  ? spawn_child(c, options->argv)
              : options->transport == VGI_CLIENT_HTTP ? VgiHttpClientInit(c)
                                                      : connect_socket(c);
-    if (rc) {
-        ArrowErrorSet(error, "Cannot connect: %s",
-                      c->error.message ? c->error.message : strerror(rc));
-        VgiClientFree(c);
-    } else {
+    if (!rc) {
         if (c->input && c->output) {
             int fd = fileno(c->input);
             fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
             fd = fileno(c->output);
             fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
         }
-        *out = c;
+        if (options->shared_memory_size) rc = negotiate_shm(c, error);
     }
+    if (rc) {
+        ArrowErrorSet(error, "Cannot connect: %s",
+                      c->error.message ? c->error.message : strerror(rc));
+        VgiClientFree(c);
+    } else
+        *out = c;
     return rc;
 }
 void VgiClientFree(struct VgiClient *c) {

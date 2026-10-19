@@ -17,9 +17,13 @@ options.shared_memory_size = 64 * 1024 * 1024;
 options.shared_memory_threshold = 128 * 1024;
 ```
 
-The application opts into a peer that supports shared memory; this does not add
-a separate capability-negotiation round trip. Each request advertises the segment
-name and size. Requests, unary results, and stream data can use zero-row pointer
+Setting a size enables a `__transport_options__` handshake once per connection.
+The client creates and advertises a segment only after the peer confirms
+`vgi_rpc.transport.shm=true`. Unsupported peers and application errors during the
+handshake fall back to inline IPC; a broken connection fails to connect.
+The C server answers this reserved method before application routing and version
+checks, without adding it to protocol reflection. Each subsequent request advertises
+the segment name and size. Requests, unary results, and stream data can use zero-row pointer
 batches containing `vgi_rpc.shm_offset` and `vgi_rpc.shm_length`. Stream headers,
 logs, empty application batches, and small or non-fitting batches stay inline.
 `VGI_RPC_SHM_MIN_BATCH_BYTES` sets the server threshold; clients have the explicit

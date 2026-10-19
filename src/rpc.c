@@ -650,6 +650,12 @@ const struct VgiExternalOptions *VgiRpcServerExternal(struct VgiRpcServer *serve
 const char *VgiRpcPrimaryProtocol(struct VgiRpcServer *server) {
     return server->count ? server->protocols[0].name : "";
 }
+static const struct VgiMethod transport_options = {
+    .name = "__transport_options__",
+    .kind = VGI_METHOD_UNARY,
+    .params = VgiSchemaRpcEmpty,
+    .result = VgiSchemaRpcEmpty,
+};
 int VgiRpcPrepare(struct VgiRpcCall *call, const char *route_protocol, const char *route_method) {
     int rc = 0;
     struct VgiRpcServer *server = call->server;
@@ -682,6 +688,15 @@ int VgiRpcPrepare(struct VgiRpcCall *call, const char *route_protocol, const cha
                      "1"))
         rc = VgiRpcFail(call, "VersionError", "INVALID_ARGUMENT", "",
                         "Missing or unsupported vgi_rpc.request_version; expected 1");
+    /* Framework capabilities are independent of application routing/versioning
+     * and are deliberately absent from protocol reflection. */
+    if (!rc && !strcmp(method_name, transport_options.name)) {
+        call->protocol = "";
+        call->method = &transport_options;
+        free(protocol_name);
+        free(method_name);
+        return validate_params(call);
+    }
     if (!rc)
         protocol = !strcmp(protocol_name, self.name) ? &self : find_protocol(server, protocol_name);
     if (!rc && !*protocol_name)
@@ -706,6 +721,17 @@ int VgiRpcPrepare(struct VgiRpcCall *call, const char *route_protocol, const cha
     return rc;
 }
 int VgiRpcInvoke(struct VgiRpcCall *call, struct VgiRpcReply *reply) {
+    if (call->method == &transport_options) {
+        int rc = VgiRpcBatchInitNamed(&reply->value, "Empty", &call->error);
+        if (!rc) rc = VgiBatchFinish(&reply->value, &call->error);
+        int local = call->transport_kind == VGI_TRANSPORT_PIPE ||
+                    call->transport_kind == VGI_TRANSPORT_UNIX;
+        if (!rc)
+            rc =
+                VgiMetadataSet(&reply->metadata, "vgi_rpc.transport.shm", local ? "true" : "false");
+        if (!rc) rc = VgiMetadataSet(&reply->metadata, VGI_RPC_REQUEST_VERSION_KEY, "1");
+        return rc;
+    }
     struct VgiRpcProtocol self = reflection_protocol(call->server);
     const struct VgiRpcProtocol *protocol =
         call->protocol && !strcmp(call->protocol, self.name)

@@ -36,6 +36,7 @@ Build the worker and client driver with the default CMake options. Use a Python
 ```sh
 ../vgi-rpc/.venv/bin/python scripts/test_conformance.py --reference-repo ../vgi-rpc
 ../vgi-rpc/.venv/bin/python tests/check_native_client.py
+../vgi-rpc/.venv/bin/python tests/check_shm_negotiation.py
 ../vgi-rpc/.venv/bin/python tests/check_telemetry.py
 ../vgi-rpc/.venv/bin/python scripts/generate_protocol.py --check
 ctest --test-dir build --output-on-failure

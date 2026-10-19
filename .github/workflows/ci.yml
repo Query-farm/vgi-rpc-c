@@ -31,6 +31,8 @@ jobs:
       - name: Shared server and native-client conformance
         run: python scripts/test_conformance.py --reference-repo reference
       - name: C batch construction and HTTPS
-        run: python tests/check_native_client.py
+        run: |
+          python tests/check_native_client.py
+          python tests/check_shm_negotiation.py
       - name: OpenTelemetry export and propagation
         run: python tests/check_telemetry.py

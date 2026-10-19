@@ -430,6 +430,25 @@ static void telemetry_delivery(const char *endpoint, const char *worker, int fai
     CHECK(stats.recorded == 1 && stats.export_failures == (uint64_t)failures);
     VgiTelemetryFree(t);
 }
+static void shm_fallback(const char *python, const char *script, const char *mode) {
+    struct VgiClientOptions o;
+    VgiClientOptionsInit(&o);
+    const char *argv[] = {python, script, "--peer", mode, NULL};
+    o.argv = argv;
+    o.protocol = VGI_CONFORMANCE_NAME;
+    o.protocol_version = VGI_CONFORMANCE_VERSION;
+    o.shared_memory_size = 1024 * 1024;
+    o.shared_memory_threshold = 0;
+    struct VgiClient *c = NULL;
+    struct ArrowError e = {{0}};
+    CHECK(!VgiClientConnect(&o, &c, &e));
+    CHECK(!VgiClientLastError(c)->type);
+    echo(c, "inline after negotiation");
+    struct VgiShmStats stats;
+    VgiClientSharedMemoryStats(c, &stats);
+    CHECK(!stats.batches_written && !stats.batches_read);
+    VgiClientFree(c);
+}
 int main(int argc, char **argv) {
     CHECK(argc >= 2);
     setenv("VGI_RPC_SHM_MIN_BATCH_BYTES", "0", 1);
@@ -439,6 +458,9 @@ int main(int argc, char **argv) {
     } else if (!strcmp(argv[1], "--telemetry-delivery")) {
         CHECK(argc == 5);
         telemetry_delivery(argv[2], argv[3], atoi(argv[4]));
+    } else if (!strcmp(argv[1], "--shm-fallback")) {
+        CHECK(argc == 5);
+        shm_fallback(argv[2], argv[3], argv[4]);
     } else {
         shm_tests(argv[1]);
         shm_validation();

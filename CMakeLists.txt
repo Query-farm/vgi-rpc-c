@@ -46,7 +46,7 @@ pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
 find_package(ZLIB REQUIRED)
 add_library(vgi_rpc src/schema.c src/ipc.c src/stream.c src/batch.c src/rpc.c
     src/socket.c src/credentials.c src/identity.c src/http.c src/http_codec.c src/proof.c src/session.c
-    src/generated/protocol.c src/external.c src/token.c src/client.c src/client_io.c src/client_http.c)
+    src/generated/protocol.c src/external.c src/token.c src/client.c src/client_io.c src/client_http.c src/shm.c src/pool.c src/telemetry.c)
 add_library(vgi_rpc::vgi_rpc ALIAS vgi_rpc)
 target_include_directories(vgi_rpc PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -57,6 +57,9 @@ target_link_libraries(vgi_rpc PRIVATE PkgConfig::JSONC PkgConfig::SODIUM
     PkgConfig::LIBEVENT PkgConfig::ZSTD PkgConfig::CURL ZLIB::ZLIB Threads::Threads)
 if(UNIX)
     target_link_libraries(vgi_rpc PRIVATE m)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(vgi_rpc PRIVATE rt)
 endif()
 set_target_properties(vgi_rpc PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 if(MSVC)
@@ -89,6 +92,10 @@ if(VGI_RPC_BUILD_TESTS)
     add_test(NAME security COMMAND vgi-rpc-security-test)
     add_executable(vgi-rpc-client-integration tests/client_integration.c)
     target_link_libraries(vgi-rpc-client-integration PRIVATE vgi_rpc::vgi_rpc)
+    add_executable(vgi-rpc-features-test tests/features_test.c conformance/protocol.c)
+    target_include_directories(vgi-rpc-features-test PRIVATE src conformance)
+    target_link_libraries(vgi-rpc-features-test PRIVATE vgi_rpc::vgi_rpc Threads::Threads)
+    add_test(NAME runtime_features COMMAND vgi-rpc-features-test $<TARGET_FILE:conformance_worker>)
 endif()
 
 if(VGI_RPC_BUILD_EXAMPLES)

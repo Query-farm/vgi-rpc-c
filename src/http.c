@@ -29,6 +29,7 @@
 #include "http_codec.h"
 #include "rpc_internal.h"
 #include "session.h"
+#include "telemetry_internal.h"
 #include "token.h"
 
 #define HTTP_ARROW "application/vnd.apache.arrow.stream"
@@ -66,6 +67,7 @@ struct HttpServer {
     int stopping;
 };
 struct HttpTask {
+    struct VgiTraceSpan *trace;
     struct VgiSessionBinding session;
     struct HttpServer *server;
     struct evhttp_request *request;
@@ -624,6 +626,7 @@ static int append_output(struct HttpTask *task, const struct VgiBatch *batch, co
 static int write_failure(struct HttpTask *task, struct VgiRpcCall *call,
                          const struct ArrowSchema *schema) {
     task->rpc_error = 1;
+    VgiTraceError(task->trace, call->error_type);
     if (task->log && call->error_type) {
         json_object_object_add(task->log, "error_type", json_object_new_string(call->error_type));
         if (call->error_code)
@@ -1054,6 +1057,10 @@ static int dispatch_core(struct HttpTask *task) {
     if (!rc)
         rc = VgiIpcReadBatch(bytes(&decoded), &s->call.request.schema, &s->call.request.array,
                              &s->call.metadata, &s->call.error);
+    if (!rc && task->trace && !request_header(task->request, "traceparent")) {
+        VgiTraceReparent(task->trace, (const char *)s->call.metadata.data);
+        VgiTraceContextSwap(VgiTraceSpanContext(task->trace), NULL);
+    }
     if (!rc) {
         int resolved = VgiExternalResolve(&s->call, &s->call.request, &s->call.metadata);
         if (resolved) {
@@ -1213,8 +1220,26 @@ static int dispatch_core(struct HttpTask *task) {
     return 0;
 }
 static int dispatch(struct HttpTask *task) {
+    /* Route a copy: route() splits its path buffer in place. */
+    struct HttpTask copy = *task;
+    copy.path = strdup(task->path);
+    char *protocol = NULL, *method = NULL;
+    int mode = 0;
+    if (copy.path && !route(&copy, &protocol, &method, &mode))
+        task->trace = VgiTraceStart(VgiRpcServerTelemetry(task->server->rpc), protocol, method,
+                                    mode == 1   ? "stream.init"
+                                    : mode == 2 ? "stream.exchange"
+                                                : "unary",
+                                    "http", 0, NULL, request_header(task->request, "traceparent"),
+                                    request_header(task->request, "tracestate"));
+    free(copy.path);
+    struct VgiTraceContext previous;
+    VgiTraceContextSwap(VgiTraceSpanContext(task->trace), &previous);
     int rc = dispatch_core(task);
     VgiSessionUnbind(&task->session);
+    VgiTraceContextSwap(&previous, NULL);
+    VgiTraceEnd(task->trace, rc || task->rpc_error || task->status >= 400);
+    task->trace = NULL;
     return rc;
 }
 

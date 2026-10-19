@@ -19,7 +19,10 @@ from pathlib import Path
 
 @contextlib.contextmanager
 def worker(*args: str, tls: bool = False) -> Iterator[tuple[str, str | None]]:
-    proc = subprocess.Popen([sys.executable, "-m", "vgi_rpc.conformance.client_worker", *args], stdout=subprocess.PIPE)
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "vgi_rpc.conformance.client_worker", *args], stdout=subprocess.PIPE,
+        env={**os.environ, "VGI_RPC_SHM_MIN_BATCH_BYTES": "0"},
+    )
     try:
         assert proc.stdout is not None
         line = proc.stdout.readline().decode().strip()
@@ -46,15 +49,19 @@ def main() -> None:
     args = parser.parse_args()
     executable = str((args.build_dir / "vgi-rpc-client-integration").resolve())
 
-    def run(*argv: str) -> None:
+    def run(*argv: str, shm: bool = False) -> None:
         subprocess.run(
-            [executable, *argv], check=True, timeout=90, env={**os.environ, "NO_PROXY": "localhost,127.0.0.1,127.0.0.2"}
+            [executable, *argv], check=True, timeout=90,
+            env={**os.environ, "NO_PROXY": "localhost,127.0.0.1,127.0.0.2",
+                 **({"VGI_RPC_C_TEST_SHM": "1", "VGI_RPC_SHM_MIN_BATCH_BYTES": "0"} if shm else {})},
         )
 
     run("stdio", sys.executable)
+    run("stdio", sys.executable, shm=True)
     with tempfile.TemporaryDirectory(prefix="vgi-c-client-", dir="/tmp") as directory:
         with worker("--unix", str(Path(directory) / "worker.sock")) as (path, _):
             run("unix", path)
+            run("unix", path, shm=True)
     with worker("--tcp", "127.0.0.1:0") as (address, _):
         run("tcp", address)
     for extra in ((), ("--producer-turn-bytes", "65536"), ("--external",)):

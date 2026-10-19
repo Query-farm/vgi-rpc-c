@@ -9,6 +9,8 @@
 
 #include "external_internal.h"
 #include "rpc_internal.h"
+#include "shm_internal.h"
+#include "telemetry_internal.h"
 
 struct ManagedState {
     void *state;
@@ -16,6 +18,7 @@ struct ManagedState {
     struct ManagedState *next;
 };
 struct VgiRpcServer {
+    struct VgiTelemetry *telemetry;
     struct VgiExternalOptions external;
     int external_enabled;
     struct ManagedState *managed;
@@ -100,6 +103,22 @@ int VgiRpcLogExtra(struct VgiRpcCall *call, const char *level, const char *messa
             free(entry);
             return rc;
         }
+    }
+    struct VgiTraceContext trace;
+    VgiTraceContextCurrent(&trace);
+    if (trace.traceparent[0]) {
+        struct json_object *extra = extra_json ? json_tokener_parse(extra_json) : NULL;
+        if (!extra || !json_object_is_type(extra, json_type_object)) {
+            json_object_put(extra);
+            extra = json_object_new_object();
+        }
+        json_object_object_add(extra, "trace_id",
+                               json_object_new_string_len(trace.traceparent + 3, 32));
+        json_object_object_add(extra, "span_id",
+                               json_object_new_string_len(trace.traceparent + 36, 16));
+        VgiMetadataSet(&entry->metadata, VGI_RPC_LOG_EXTRA_KEY,
+                       json_object_to_json_string_ext(extra, JSON_C_TO_STRING_PLAIN));
+        json_object_put(extra);
     }
     if (call->logs_tail)
         call->logs_tail->next = entry;
@@ -403,13 +422,13 @@ static int reflection(void *state, struct VgiRpcCall *call, struct VgiRpcReply *
 }
 
 static int write_batch(FILE *output, const struct VgiBatch *batch, const char *metadata,
-                       struct VgiRpcCall *call, struct ArrowError *error) {
+                       struct VgiRpcCall *call, struct ArrowError *error, int use_shm) {
     struct ArrowIpcOutputStream target = {0};
     struct VgiIpcWriter writer = {0};
     int rc = ArrowIpcOutputStreamInitFile(&target, output, 0);
     if (!rc) rc = VgiIpcWriterInit(&writer, &batch->schema, &target, error);
     if (!rc) rc = VgiRpcWriteLogs(call, &writer, &batch->schema, error);
-    if (!rc) rc = VgiIpcWriterNext(&writer, &batch->array, metadata, error);
+    if (!rc) rc = VgiShmWrite(use_shm ? call->shm : NULL, &writer, &batch->array, metadata, error);
     if (!rc) rc = VgiIpcWriterFinish(&writer, error);
     if (!rc && fflush(output)) rc = EIO;
     VgiIpcWriterReset(&writer);
@@ -454,7 +473,7 @@ static int write_error(FILE *output, struct VgiRpcCall *call, struct ArrowError 
     int rc = VgiRpcBatchInitNamed(&empty, "Empty", error);
     if (!rc) rc = VgiBatchFinish(&empty, error);
     if (!rc) rc = VgiRpcErrorMetadata(call, &metadata);
-    if (!rc) rc = write_batch(output, &empty, (const char *)metadata.data, call, error);
+    if (!rc) rc = write_batch(output, &empty, (const char *)metadata.data, call, error, 0);
     VgiBatchReset(&empty);
     ArrowBufferReset(&metadata);
     return rc;
@@ -589,6 +608,7 @@ void VgiRpcCallInit(struct VgiRpcCall *call, struct VgiRpcServer *server) {
     sodium_bin2hex(call->request_id, sizeof(call->request_id), id, sizeof(id));
 }
 void VgiRpcCallReset(struct VgiRpcCall *call) {
+    VgiShmFree(call->shm);
     VgiBatchReset(&call->request);
     ArrowBufferReset(&call->metadata);
     if (call->release_application_state) call->release_application_state(call->application_state);
@@ -607,6 +627,14 @@ void VgiRpcReplyReset(struct VgiRpcReply *reply) {
     memset(reply, 0, sizeof(*reply));
 }
 const char *VgiRpcServerId(struct VgiRpcServer *server) { return server->id; }
+int VgiRpcServerSetTelemetry(struct VgiRpcServer *server, struct VgiTelemetry *telemetry) {
+    if (!server || server->serving) return EINVAL;
+    server->telemetry = telemetry;
+    return 0;
+}
+struct VgiTelemetry *VgiRpcServerTelemetry(struct VgiRpcServer *server) {
+    return server ? server->telemetry : NULL;
+}
 int VgiRpcServerSetExternal(struct VgiRpcServer *server, const struct VgiExternalOptions *options) {
     if (!server || server->serving) return EINVAL;
     if (options && (options->max_fetch_bytes < 1 || options->max_decompressed_bytes < 1 ||
@@ -702,8 +730,9 @@ static int serve_stream(struct VgiRpcCall *call, struct VgiRpcReply *reply, FILE
     struct VgiRpcStream *stream = &reply->stream;
     struct ArrowError *error = &call->error;
     if (!stream->next || !stream->output_schema.release) return EINVAL;
-    int rc =
-        stream->header.array.release ? write_batch(output, &stream->header, NULL, call, error) : 0;
+    int rc = stream->header.array.release
+                 ? write_batch(output, &stream->header, NULL, call, error, 0)
+                 : 0;
     struct ArrowIpcInputStream source = {0};
     struct ArrowIpcOutputStream target = {0};
     struct VgiIpcReader reader = {0};
@@ -722,7 +751,8 @@ static int serve_stream(struct VgiRpcCall *call, struct VgiRpcReply *reply, FILE
         rc = VgiIpcReaderNext(&reader, &incoming.array, &metadata, error);
         if (rc || !incoming.array.release) break;
         if (!finished) {
-            rc = VgiExternalResolve(call, &incoming, &metadata);
+            rc = VgiShmResolve(call->shm, &incoming, &metadata, error);
+            if (!rc) rc = VgiExternalResolve(call, &incoming, &metadata);
             struct ArrowStringView cancel =
                 VgiMetadataGet((const char *)metadata.data, VGI_RPC_CANCEL_KEY);
             if (!rc && cancel.data) {
@@ -735,8 +765,8 @@ static int serve_stream(struct VgiRpcCall *call, struct VgiRpcReply *reply, FILE
                                   &outgoing, &out_metadata, &finished);
             if (!rc) rc = VgiRpcWriteLogs(call, &writer, &stream->output_schema, error);
             if (!rc && outgoing.array.release)
-                rc = VgiIpcWriterNext(&writer, &outgoing.array, (const char *)out_metadata.data,
-                                      error);
+                rc = VgiShmWrite(call->shm, &writer, &outgoing.array,
+                                 (const char *)out_metadata.data, error);
             if (!rc && finished) rc = VgiIpcWriterFinish(&writer, error);
             if (!rc && fflush(output)) rc = EIO;
         }
@@ -806,9 +836,19 @@ int VgiRpcServerServeOne(struct VgiRpcServer *server, FILE *input, FILE *output,
     if (extra.release) ArrowArrayRelease(&extra);
     VgiIpcReaderReset(&reader);
     if (source.release) source.release(&source);
+    if (!rc &&
+        (call.transport_kind == VGI_TRANSPORT_PIPE || call.transport_kind == VGI_TRANSPORT_UNIX))
+        rc = VgiShmFromMetadata((const char *)call.metadata.data, &call.shm, &call.error);
+    if (!rc) rc = VgiShmResolve(call.shm, &call.request, &call.metadata, &call.error);
     if (!rc) rc = VgiExternalResolve(&call, &call.request, &call.metadata);
     if (!rc) rc = VgiBatchView(&call.request, &call.error);
     if (!rc) rc = VgiRpcPrepare(&call, NULL, NULL);
+    struct VgiTraceSpan *trace = VgiTraceStart(
+        server->telemetry, call.protocol, call.method ? call.method->name : "unknown",
+        call.method && call.method->kind == VGI_METHOD_STREAM ? "stream" : "unary",
+        VgiTransportKindName(call.transport_kind), 0, (const char *)call.metadata.data, NULL, NULL);
+    struct VgiTraceContext previous;
+    VgiTraceContextSwap(VgiTraceSpanContext(trace), &previous);
     int invoked_stream = !rc && call.method->kind == VGI_METHOD_STREAM;
     if (!rc) rc = VgiRpcInvoke(&call, &reply);
     if (rc) {
@@ -847,9 +887,13 @@ int VgiRpcServerServeOne(struct VgiRpcServer *server, FILE *input, FILE *output,
         if (!rc && !published)
             rc = VgiMetadataSet(&reply.metadata, VGI_RPC_REQUEST_ID_KEY, call.request_id);
         if (!rc)
-            rc = write_batch(output, &reply.value, (const char *)reply.metadata.data, &call, error);
+            rc = write_batch(output, &reply.value, (const char *)reply.metadata.data, &call, error,
+                             1);
     }
     VgiRpcReplyReset(&reply);
+    if (call.error_type) VgiTraceError(trace, call.error_type);
+    VgiTraceContextSwap(&previous, NULL);
+    VgiTraceEnd(trace, rc || call.error.message[0]);
     VgiRpcCallReset(&call);
     return rc;
 }

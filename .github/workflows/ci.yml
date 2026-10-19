@@ -18,7 +18,7 @@ jobs:
           ref: 73108975795d63dd8d1da03117b286d7a4aeb6ef
           path: reference
       - name: Python reference and test dependencies
-        run: python -m pip install -e './reference[http,conformance,mtls,external,otel]' pytest pytest-timeout ruff
+        run: python -m pip install -e './reference[http,conformance,mtls,external,otel]' pytest pytest-timeout ruff opentelemetry-proto
       - name: Build and native tests
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -32,3 +32,5 @@ jobs:
         run: python scripts/test_conformance.py --reference-repo reference
       - name: C batch construction and HTTPS
         run: python tests/check_native_client.py
+      - name: OpenTelemetry export and propagation
+        run: python tests/check_telemetry.py

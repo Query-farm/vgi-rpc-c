@@ -7,6 +7,7 @@
 #include "vgi_rpc/generated/protocol.h"
 #include "vgi_rpc/method.h"
 #include "vgi_rpc/stream.h"
+#include "vgi_rpc/telemetry.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,6 +22,7 @@ const char *VgiTransportKindName(enum VgiTransportKind);
 struct VgiRpcServer;
 struct VgiRpcLogEntry;
 struct VgiSessionBinding;
+struct VgiShm;
 struct VgiRpcCall {
     struct VgiRpcServer *server;
     enum VgiTransportKind transport_kind;
@@ -49,6 +51,8 @@ struct VgiRpcCall {
     struct VgiRpcLogEntry *logs_tail;
     /* Bound by the HTTP runtime for this request only. */
     struct VgiSessionBinding *session_binding;
+    /* Runtime-owned side channel; only present on local byte-stream calls. */
+    struct VgiShm *shm;
 };
 
 /* A stream callback returns one batch, or sets finished to signal EOS.
@@ -91,6 +95,7 @@ struct VgiRpcProtocol {
 };
 
 struct VgiRpcServer *VgiRpcServerNew(void);
+int VgiRpcServerSetTelemetry(struct VgiRpcServer *, struct VgiTelemetry *);
 /* Configure before serving. The options are copied; callback state and strings
  * must outlive the server. NULL disables external-location resolution. */
 int VgiRpcServerSetExternal(struct VgiRpcServer *, const struct VgiExternalOptions *);

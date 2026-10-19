@@ -118,6 +118,7 @@ static struct json_object *connect_client(struct Driver *d, struct json_object *
     const char **argv = NULL;
     if (!strcmp(transport, "stdio") || !strcmp(transport, "shm")) {
         options.transport = VGI_CLIENT_STDIO;
+        if (!strcmp(transport, "shm")) options.shared_memory_size = 64 * 1024 * 1024;
         struct json_object *args = json_object_object_get(request, "target");
         if (!json_object_is_type(args, json_type_array))
             return driver_error("stdio target must be an argv array");

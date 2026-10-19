@@ -13,6 +13,7 @@
 #include "external_internal.h"
 #include "http_codec.h"
 #include "rpc_internal.h"
+#include "telemetry_internal.h"
 
 struct PendingBatch {
     struct VgiAnnotatedBatch value;
@@ -35,6 +36,13 @@ struct VgiHttpClient {
     struct ArrowSchema input_schema, output_schema;
     int64_t response_limit;
 };
+const char *VgiHttpClientDefaultHeader(struct VgiClient *c, const char *name) {
+    if (!c->http || !c->http->defaults) return NULL;
+    json_object_object_foreach(c->http->defaults, key, value) {
+        if (!strcasecmp(key, name)) return json_object_get_string(value);
+    }
+    return NULL;
+}
 static struct ArrowBufferView bytes(const struct ArrowBuffer *b) {
     return (struct ArrowBufferView){{b->data}, b->size_bytes};
 }
@@ -182,8 +190,20 @@ static int exchange_http(struct VgiClient *c, const char *verb, const char *path
     if (!rc) rc = append_header(&headers, "X-VGI-Accept-Encoding", "zstd,gzip,identity");
     if (!rc) rc = append_header(&headers, "Expect", "");
     json_object_object_foreach(h->defaults, key, value) {
+        if (c->trace && (!strcasecmp(key, "traceparent") || !strcasecmp(key, "tracestate")))
+            continue;
         if (!rc) rc = append_header(&headers, key, json_object_get_string(value));
     }
+    struct VgiTraceContext trace;
+    const struct VgiTraceContext *active = VgiTraceSpanContext(c->trace);
+    if (active)
+        trace = *active;
+    else
+        VgiTraceContextCurrent(&trace);
+    if (!rc && trace.traceparent[0] && (c->trace || !VgiHttpClientDefaultHeader(c, "traceparent")))
+        rc = append_header(&headers, "traceparent", trace.traceparent);
+    if (!rc && trace.tracestate[0] && (c->trace || !VgiHttpClientDefaultHeader(c, "tracestate")))
+        rc = append_header(&headers, "tracestate", trace.tracestate);
     if (!rc && c->options.accepted_max_response_bytes) {
         char value[32];
         snprintf(value, sizeof(value), "%lld", (long long)c->options.accepted_max_response_bytes);

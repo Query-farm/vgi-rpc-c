@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <json-c/json.h>
 #include <netdb.h>
+#include <poll.h>
 #include <signal.h>
 #include <spawn.h>
 #include <stdlib.h>
@@ -17,6 +18,8 @@
 #include "client_internal.h"
 #include "external_internal.h"
 #include "rpc_internal.h"
+#include "shm_internal.h"
+#include "telemetry_internal.h"
 extern char **environ;
 
 static char *text_copy(struct ArrowStringView value) {
@@ -48,6 +51,10 @@ void VgiClientOptionsInit(struct VgiClientOptions *options) {
     memset(options, 0, sizeof(*options));
     options->timeout_seconds = 30;
     options->compression_level = 1;
+    options->shared_memory_threshold = 128 * 1024;
+}
+void VgiClientSharedMemoryStats(const struct VgiClient *c, struct VgiShmStats *out) {
+    VgiShmGetStats(c ? c->shm : NULL, out);
 }
 void VgiClientClearError(struct VgiClient *c) {
     free((void *)c->error.type);
@@ -71,6 +78,8 @@ int VgiClientSetError(struct VgiClient *c, const char *type, const char *code,
     return EIO;
 }
 static int failed(struct VgiClient *c, int rc) {
+    if (rc) VgiTraceError(c->trace, c->error.type);
+    if (rc && rc != ECANCELED) c->broken = 1;
     if (rc && !c->error.type) {
         char message[sizeof(c->arrow_error.message)];
         snprintf(message, sizeof(message), "%s",
@@ -78,6 +87,35 @@ static int failed(struct VgiClient *c, int rc) {
         VgiClientSetError(c, "TransportError", "UNAVAILABLE", message);
     }
     return rc;
+}
+static void trace_start(struct VgiClient *c, const char *method, const char *type,
+                        const char *metadata) {
+    const char *transports[] = {"pipe", "unix", "tcp", "http"};
+    c->trace = VgiTraceStart(c->options.telemetry, c->protocol, method, type,
+                             transports[c->options.transport], 1, metadata,
+                             VgiHttpClientDefaultHeader(c, "traceparent"),
+                             VgiHttpClientDefaultHeader(c, "tracestate"));
+}
+static void trace_end(struct VgiClient *c, int rc) {
+    if (rc) VgiTraceError(c->trace, c->error.type);
+    VgiTraceEnd(c->trace, rc);
+    c->trace = NULL;
+}
+int VgiClientReusable(struct VgiClient *c) {
+    if (!c || c->broken || c->streaming || c->child <= 0 || !c->input) return 0;
+    int status;
+    pid_t result = waitpid(c->child, &status, WNOHANG);
+    if (result == c->child || (result < 0 && errno == ECHILD)) {
+        c->child = 0;
+        c->broken = 1;
+        return 0;
+    }
+    struct pollfd fd = {fileno(c->input), POLLIN, 0};
+    int rc;
+    do {
+        rc = poll(&fd, 1, 0);
+    } while (rc < 0 && errno == EINTR);
+    return rc == 0;
 }
 const struct VgiClientError *VgiClientLastError(const struct VgiClient *c) { return &c->error; }
 int VgiClientReadMetadata(struct VgiClient *c, const char *metadata) {
@@ -124,7 +162,8 @@ static void resolved_log(void *state, const char *metadata) {
 int VgiClientResolve(struct VgiClient *c, struct VgiAnnotatedBatch *batch) {
     struct VgiRpcCall call;
     VgiRpcCallInit(&call, c->resolver);
-    int rc = VgiExternalResolve(&call, &batch->batch, &batch->metadata);
+    int rc = VgiShmResolve(c->shm, &batch->batch, &batch->metadata, &call.error);
+    if (!rc) rc = VgiExternalResolve(&call, &batch->batch, &batch->metadata);
     VgiRpcDrainLogs(&call, resolved_log, c);
     if (rc)
         VgiClientSetError(c, call.error_type ? call.error_type : "ExternalLocationError",
@@ -142,6 +181,8 @@ int VgiClientRequestMetadata(struct VgiClient *c, const char *method, const char
     for (int i = 0; !rc && i < 4; ++i)
         if (values[i] && *values[i] && !VgiMetadataGet(metadata, keys[i]).data)
             rc = VgiMetadataSet(out, keys[i], values[i]);
+    if (!rc) rc = VgiShmAdvertise(c->shm, out);
+    if (!rc) rc = VgiTraceInject(c->trace, out);
     return rc;
 }
 static int spawn_child(struct VgiClient *c, const char *const *argv) {
@@ -238,7 +279,12 @@ static int connect_socket(struct VgiClient *c) {
 }
 int VgiClientConnect(const struct VgiClientOptions *options, struct VgiClient **out,
                      struct ArrowError *error) {
-    if (!options || !out || *out || !options->protocol || !*options->protocol) return EINVAL;
+    if (!options || !out || *out || !options->protocol || !*options->protocol ||
+        options->transport < VGI_CLIENT_STDIO || options->transport > VGI_CLIENT_HTTP)
+        return EINVAL;
+    if (options->shared_memory_size && options->transport != VGI_CLIENT_STDIO &&
+        options->transport != VGI_CLIENT_UNIX)
+        return EINVAL;
     struct VgiClient *c = calloc(1, sizeof(*c));
     if (!c) return ENOMEM;
     c->options = *options;
@@ -247,6 +293,10 @@ int VgiClientConnect(const struct VgiClientOptions *options, struct VgiClient **
     c->resolver = VgiRpcServerNew();
     int rc = c->protocol && c->version && c->resolver ? 0 : ENOMEM;
     if (!rc) rc = VgiRpcServerSetExternal(c->resolver, options->external);
+    if (!rc && options->shared_memory_size) {
+        rc = VgiShmCreate(options->shared_memory_size, &c->shm, error);
+        if (!rc) VgiShmSetThreshold(c->shm, options->shared_memory_threshold);
+    }
     if (!rc)
         rc = options->transport == VGI_CLIENT_STDIO  ? spawn_child(c, options->argv)
              : options->transport == VGI_CLIENT_HTTP ? VgiHttpClientInit(c)
@@ -268,6 +318,7 @@ int VgiClientConnect(const struct VgiClientOptions *options, struct VgiClient **
 }
 void VgiClientFree(struct VgiClient *c) {
     if (!c) return;
+    trace_end(c, c->streaming);
     VgiHttpClientReset(c);
     VgiIpcWriterReset(&c->writer);
     VgiIpcReaderReset(&c->reader);
@@ -275,9 +326,10 @@ void VgiClientFree(struct VgiClient *c) {
     if (c->input) fclose(c->input);
     if (c->output) fclose(c->output);
     if (c->child > 0) {
-        kill(c->child, SIGTERM);
         int status, waited = 0;
-        for (int i = 0; i < 20; ++i) {
+        /* EOF lets cooperative workers release state and flush telemetry. */
+        for (int i = 0; i < 40; ++i) {
+            if (i == 20) kill(c->child, SIGTERM);
             pid_t result = waitpid(c->child, &status, WNOHANG);
             if (result == c->child || (result < 0 && errno == ECHILD)) {
                 waited = 1;
@@ -293,6 +345,7 @@ void VgiClientFree(struct VgiClient *c) {
         }
     }
     VgiRpcServerFree(c->resolver);
+    VgiShmFree(c->shm);
     VgiClientClearError(c);
     free(c->protocol);
     free(c->version);
@@ -307,8 +360,8 @@ static int request(struct VgiClient *c, const char *method, const struct VgiAnno
     if (!rc) rc = VgiClientOutput(c, &target);
     if (!rc) rc = VgiIpcWriterInit(&writer, &input->batch.schema, &target, &c->arrow_error);
     if (!rc)
-        rc = VgiIpcWriterNext(&writer, &input->batch.array, (const char *)metadata.data,
-                              &c->arrow_error);
+        rc = VgiShmWrite(c->shm, &writer, &input->batch.array, (const char *)metadata.data,
+                         &c->arrow_error);
     if (!rc) rc = VgiIpcWriterFinish(&writer, &c->arrow_error);
     if (!rc && fflush(c->output)) rc = EIO;
     VgiIpcWriterReset(&writer);
@@ -383,10 +436,17 @@ int VgiClientUnary(struct VgiClient *c, const char *method, const struct VgiAnno
     if (c->streaming)
         return VgiClientSetError(c, "ProtocolError", "FAILED_PRECONDITION",
                                  "Stream is already open");
-    if (c->http) return failed(c, VgiHttpClientUnary(c, method, input, out));
-    int rc = request(c, method, input);
-    if (!rc) rc = substream(c, out);
+    trace_start(c, method, "unary", (const char *)input->metadata.data);
+    int rc;
+    if (c->http)
+        rc = VgiHttpClientUnary(c, method, input, out);
+    else {
+        rc = request(c, method, input);
+        if (!rc) rc = substream(c, out);
+    }
     if (!rc && !out->batch.array.release) rc = EINVAL;
+    if (!rc || rc == ECANCELED) VgiShmReset(c->shm);
+    trace_end(c, rc);
     return failed(c, rc);
 }
 static int writer_init(struct VgiClient *c, const struct ArrowSchema *schema) {
@@ -404,8 +464,12 @@ int VgiClientStreamOpen(struct VgiClient *c, const char *method,
     if (c->streaming)
         return VgiClientSetError(c, "ProtocolError", "FAILED_PRECONDITION",
                                  "Stream is already open");
-    if (c->http)
-        return failed(c, VgiHttpClientOpen(c, method, input, exchange, has_header, header));
+    trace_start(c, method, exchange ? "exchange" : "producer", (const char *)input->metadata.data);
+    if (c->http) {
+        int rc = VgiHttpClientOpen(c, method, input, exchange, has_header, header);
+        if (rc || !c->streaming) trace_end(c, rc);
+        return failed(c, rc);
+    }
     int rc = request(c, method, input);
     c->streaming = !rc;
     c->exchange = exchange;
@@ -425,19 +489,25 @@ int VgiClientStreamOpen(struct VgiClient *c, const char *method,
             c->streaming = 0;
         }
     }
+    if (rc) trace_end(c, rc);
     return failed(c, rc);
 }
 static int step(struct VgiClient *c, const struct VgiAnnotatedBatch *input,
                 struct VgiAnnotatedBatch *out, int *done) {
-    if (c->http) return failed(c, VgiHttpClientStep(c, input, out, done));
+    if (c->http) {
+        int rc = VgiHttpClientStep(c, input, out, done);
+        if (rc || *done || !c->streaming) trace_end(c, rc);
+        return failed(c, rc);
+    }
     int rc = writer_init(c, &input->batch.schema);
     if (!rc)
-        rc = VgiIpcWriterNext(&c->writer, &input->batch.array, (const char *)input->metadata.data,
-                              &c->arrow_error);
+        rc = VgiShmWrite(c->shm, &c->writer, &input->batch.array,
+                         (const char *)input->metadata.data, &c->arrow_error);
     if (!rc && fflush(c->output)) rc = EIO;
     if (!rc && !c->reader.private_data) rc = reader_init(c, &c->reader, &c->output_schema);
     if (!rc) rc = read_next(c, &c->reader, &c->output_schema, out, done);
     if (rc || *done) {
+        if (rc) VgiTraceError(c->trace, c->error.type);
         if (*done) c->eos = 1;
         int closed = VgiClientStreamClose(c, 0);
         if (!rc) rc = closed;
@@ -477,7 +547,12 @@ int VgiClientStreamExchange(struct VgiClient *c, const struct VgiAnnotatedBatch 
 }
 int VgiClientStreamClose(struct VgiClient *c, int cancel) {
     if (!c->streaming) return 0;
-    if (c->http) return failed(c, VgiHttpClientClose(c, cancel));
+    if (cancel) VgiTraceError(c->trace, "Cancelled");
+    if (c->http) {
+        int rc = VgiHttpClientClose(c, cancel);
+        trace_end(c, rc);
+        return failed(c, rc);
+    }
     struct ArrowSchema empty = {0};
     int rc = 0;
     if (!c->writer.writer.private_data) {
@@ -515,6 +590,8 @@ int VgiClientStreamClose(struct VgiClient *c, int cancel) {
     VgiIpcReaderReset(&c->reader);
     if (c->output_schema.release) ArrowSchemaRelease(&c->output_schema);
     c->streaming = 0;
+    if (!rc) VgiShmReset(c->shm);
+    trace_end(c, rc ? rc : pending);
     return failed(c, rc ? rc : pending);
 }
 

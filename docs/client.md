@@ -30,6 +30,13 @@ sending cancellation. Raw connections complete and drain their stream framing
 so the connection can be reused. `VgiClientFree` closes owned descriptors and
 terminates an owned subprocess; abandoned raw streams do not require a peer drain.
 The API permits one active call/stream per client and is not thread-safe.
+Use [worker pool leases](pooling.md) to give concurrent callers exclusive clients.
+Subprocess cleanup first gives the worker a short EOF grace period, then uses
+SIGTERM and bounded SIGKILL/reaping if necessary.
+
+Set `shared_memory_size` to enable the [shared-memory side channel](shared-memory.md)
+on stdio or Unix sockets. `shared_memory_threshold` defaults to 128 KiB.
+Attach `options.telemetry` to emit [OpenTelemetry spans and metrics](telemetry.md).
 
 ## Errors and logs
 

@@ -655,6 +655,15 @@ int main(int argc, char **argv) {
         if (!explicit_request_cap && storage.options.threshold_bytes > 0)
             options.max_request_bytes = storage.options.threshold_bytes;
     }
+    struct VgiTelemetry *telemetry = NULL;
+    if (!rc && getenv("VGI_RPC_OTEL_ENDPOINT")) {
+        struct VgiTelemetryOptions otel;
+        VgiTelemetryOptionsInit(&otel);
+        otel.endpoint = getenv("VGI_RPC_OTEL_ENDPOINT");
+        otel.service_name = "vgi-rpc-c-server";
+        rc = VgiTelemetryNew(&otel, &telemetry, &error);
+        if (!rc) rc = VgiRpcServerSetTelemetry(server, telemetry);
+    }
     if (!rc)
         rc = http ? VgiRpcServerServeHttp(server, &options, &error)
              : unix_path || tcp_address
@@ -662,6 +671,7 @@ int main(int argc, char **argv) {
                  : VgiRpcServerServe(server, stdin, stdout, &error);
     if (rc) fprintf(stderr, "vgi-rpc-c: %s (error %d)\n", error.message, rc);
     VgiRpcServerFree(server);
+    VgiTelemetryFree(telemetry);
     ConformanceStorageReset(&storage);
     free(probe_methods);
     return rc ? 1 : 0;

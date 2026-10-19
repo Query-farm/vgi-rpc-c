@@ -192,6 +192,10 @@ int main(int argc, char **argv) {
     VgiExternalOptionsInit(&external);
     external.validate_url = NULL;
     options.external = &external;
+    if (getenv("VGI_RPC_C_TEST_SHM")) {
+        options.shared_memory_size = 64 * 1024 * 1024;
+        options.shared_memory_threshold = 0;
+    }
     int rc = VgiClientConnect(&options, &client, &error);
     if (!strcmp(argv[1], "untrusted")) {
         CHECK(rc && !client && strstr(error.message, "certificate"));
@@ -209,6 +213,11 @@ int main(int argc, char **argv) {
     CHECK(VgiBatchGet(&listing.batch, "server_id") && VgiBatchGet(&description.batch, "methods"));
     VgiAnnotatedBatchReset(&listing);
     VgiAnnotatedBatchReset(&description);
+    if (getenv("VGI_RPC_C_TEST_SHM")) {
+        struct VgiShmStats stats;
+        VgiClientSharedMemoryStats(client, &stats);
+        CHECK(stats.batches_written > 0 && stats.batches_read > 0);
+    }
     VgiClientFree(client);
     puts("Native client integration passed");
     return 0;

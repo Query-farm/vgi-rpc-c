@@ -1,6 +1,7 @@
 #ifndef VGI_RPC_CLIENT_H
 #define VGI_RPC_CLIENT_H
 #include "vgi_rpc/rpc.h"
+#include "vgi_rpc/shm.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,6 +35,9 @@ struct VgiClientOptions {
     const char *tls_ca_file;             /* NULL uses system trust; verification stays enabled */
     const char *tls_certificate_file;
     const char *tls_key_file;
+    int64_t shared_memory_size;      /* Zero disables; stdio and Unix sockets only. */
+    int64_t shared_memory_threshold; /* 128 KiB default; zero forces eligible batches. */
+    struct VgiTelemetry *telemetry;  /* Borrowed; outlives the client. */
 };
 struct VgiClientError {
     /* Owned by the client; valid until its next operation or close. */
@@ -50,6 +54,7 @@ int VgiClientConnect(const struct VgiClientOptions *, struct VgiClient **, struc
  * wait for a peer to finish an abandoned stream. */
 void VgiClientFree(struct VgiClient *);
 const struct VgiClientError *VgiClientLastError(const struct VgiClient *);
+void VgiClientSharedMemoryStats(const struct VgiClient *, struct VgiShmStats *);
 /* One call or stream at a time. Inputs are borrowed. Outputs must be zeroed and
  * are caller-owned. Request metadata is preserved; missing routing metadata is
  * supplied from method/options. Errors are available through LastError(). */

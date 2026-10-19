@@ -10,6 +10,9 @@ framing, transport I/O, continuation tokens, and error/log envelopes.
 | Build, install, or embed the library | [Building](building.md) | CMake `vgi_rpc::vgi_rpc` |
 | Register a unary or streaming service | [Server](server.md) | `vgi_rpc/rpc.h` |
 | Make calls or consume streams | [Client](client.md) | `vgi_rpc/client.h` |
+| Transfer batches through shared memory | [Shared memory](shared-memory.md) | `vgi_rpc/shm.h` |
+| Reuse bounded subprocess workers | [Pooling](pooling.md) | `vgi_rpc/pool.h` |
+| Export traces and metrics | [OpenTelemetry](telemetry.md) | `vgi_rpc/telemetry.h` |
 | Configure HTTP and identity | [Hosting](hosting.md) | `vgi_rpc/http.h`, `identity.h`, `proof.h` |
 | Publish or fetch external batches | [Hosting](hosting.md#external-payloads) | `vgi_rpc/external.h` |
 | Read and write Arrow IPC | [Ownership](server.md#ownership) | `vgi_rpc/ipc.h`, `stream.h`, `batch.h` |

@@ -33,10 +33,12 @@ it is not needed to build or run an application.
 - Stateless HTTP continuations with separate authenticated call and cursor tokens, identity binding, compression, and bounded decoding.
 - HTTP bearer and callback authentication, Identity/grant operations, proxy proofs, sticky sessions, CORS, compression, response budgets, and access logs.
 - External payload publication and resolution with method-specific upload/download URLs, digest verification, redirect validation, and fetch/decompression limits.
+- POSIX shared-memory batch transfer on subprocess and Unix-socket connections, interoperable with Python's allocator and dictionary IPC format.
+- Bounded subprocess pools with exclusive leases, timed acquisition, idle eviction, and replacement of failed workers.
+- OpenTelemetry client/server spans, W3C trace propagation, correlated logs, and asynchronous OTLP/HTTP JSON traces and metrics.
 
-Shared-memory acceleration, native Iroh connectors, worker pools, and
-OpenTelemetry exporters are not implemented. SHM-capable peers use the inline
-fallback. See [capabilities and conformance](docs/conformance.md) for the tested
+Native Iroh connectors and bundled OAuth/cloud credential-provider SDKs are
+not implemented. See [capabilities and conformance](docs/conformance.md) for the tested
 scope and [hosting](docs/hosting.md) for HTTP deployment options.
 
 ## Installation
@@ -120,6 +122,9 @@ support C++ callers through `extern "C"`.
 - [Building and dependency versions](docs/building.md)
 - [Server handlers, streams, and ownership](docs/server.md)
 - [Native clients, errors, and sessions](docs/client.md)
+- [Shared-memory transfer](docs/shared-memory.md)
+- [Subprocess worker pools](docs/pooling.md)
+- [OpenTelemetry tracing and metrics](docs/telemetry.md)
 - [HTTP hosting and external storage](docs/hosting.md)
 - [Conformance and reproducible validation](docs/conformance.md)
 - [Canonical wire protocol](https://github.com/Query-farm/vgi-rpc-python/blob/main/docs/WIRE_PROTOCOL.md)

@@ -23,7 +23,12 @@ The client creates and advertises a segment only after the peer confirms
 handshake fall back to inline IPC; a broken connection fails to connect.
 The C server answers this reserved method before application routing and version
 checks, without adding it to protocol reflection. Each subsequent request advertises
-the segment name and size. Requests, unary results, and stream data can use zero-row pointer
+the segment name and size. The server caches attachments for the connection,
+also supporting peers that advertise only once; a replacement advertisement swaps
+the mapping and disconnect releases it. Direct `VgiRpcServerServeOne` calls attach
+and detach per call. Responses use SHM only when the current request advertises a
+segment or carries a pointer, preserving inline-only catalog/bind calls on pooled
+connections. Requests, unary results, and stream data can use zero-row pointer
 batches containing `vgi_rpc.shm_offset` and `vgi_rpc.shm_length`. Stream headers,
 logs, empty application batches, and small or non-fitting batches stay inline.
 `VGI_RPC_SHM_MIN_BATCH_BYTES` sets the server threshold; clients have the explicit

@@ -752,7 +752,7 @@ int VgiRpcResume(struct VgiRpcCall *call, struct ArrowBufferView state,
 }
 
 static int serve_stream(struct VgiRpcCall *call, struct VgiRpcReply *reply, FILE *input,
-                        FILE *output) {
+                        FILE *output, int shm_response) {
     struct VgiRpcStream *stream = &reply->stream;
     struct ArrowError *error = &call->error;
     if (!stream->next || !stream->output_schema.release) return EINVAL;
@@ -791,7 +791,7 @@ static int serve_stream(struct VgiRpcCall *call, struct VgiRpcReply *reply, FILE
                                   &outgoing, &out_metadata, &finished);
             if (!rc) rc = VgiRpcWriteLogs(call, &writer, &stream->output_schema, error);
             if (!rc && outgoing.array.release)
-                rc = VgiShmWrite(call->shm, &writer, &outgoing.array,
+                rc = VgiShmWrite(shm_response ? call->shm : NULL, &writer, &outgoing.array,
                                  (const char *)out_metadata.data, error);
             if (!rc && finished) rc = VgiIpcWriterFinish(&writer, error);
             if (!rc && fflush(output)) rc = EIO;
@@ -837,13 +837,17 @@ static int serve_stream(struct VgiRpcCall *call, struct VgiRpcReply *reply, FILE
     return rc;
 }
 
-int VgiRpcServerServeOne(struct VgiRpcServer *server, FILE *input, FILE *output,
-                         struct ArrowError *error) {
+static int serve_one(struct VgiRpcServer *server, FILE *input, FILE *output,
+                     struct ArrowError *error, struct VgiShm **connection_shm) {
     VgiRpcServerFreeze(server);
     int started = VgiRpcServerEnsureStarted(server, error);
     if (started) return started;
     struct VgiRpcCall call = {0};
     VgiRpcCallInit(&call, server);
+    if (connection_shm) {
+        call.shm = *connection_shm;
+        *connection_shm = NULL;
+    }
     struct VgiRpcReply reply = {0};
     ArrowBufferInit(&reply.metadata);
     struct ArrowIpcInputStream source = {0};
@@ -862,6 +866,11 @@ int VgiRpcServerServeOne(struct VgiRpcServer *server, FILE *input, FILE *output,
     if (extra.release) ArrowArrayRelease(&extra);
     VgiIpcReaderReset(&reader);
     if (source.release) source.release(&source);
+    /* Pooled peers may use this connection for inline-only catalog/bind calls
+     * between SHM exchanges. A cached mapping alone does not opt a response in. */
+    int shm_response =
+        VgiMetadataGet((const char *)call.metadata.data, "vgi_rpc.shm_segment_name").data ||
+        VgiMetadataGet((const char *)call.metadata.data, "vgi_rpc.shm_offset").data;
     if (!rc &&
         (call.transport_kind == VGI_TRANSPORT_PIPE || call.transport_kind == VGI_TRANSPORT_UNIX))
         rc = VgiShmFromMetadata((const char *)call.metadata.data, &call.shm, &call.error);
@@ -899,7 +908,7 @@ int VgiRpcServerServeOne(struct VgiRpcServer *server, FILE *input, FILE *output,
             if (incoming.release) incoming.release(&incoming);
         }
     } else if (call.method->kind == VGI_METHOD_STREAM) {
-        rc = serve_stream(&call, &reply, input, output);
+        rc = serve_stream(&call, &reply, input, output, shm_response);
         if (rc) *error = call.error;
     } else {
         if (!reply.value.array.release) {
@@ -914,25 +923,44 @@ int VgiRpcServerServeOne(struct VgiRpcServer *server, FILE *input, FILE *output,
             rc = VgiMetadataSet(&reply.metadata, VGI_RPC_REQUEST_ID_KEY, call.request_id);
         if (!rc)
             rc = write_batch(output, &reply.value, (const char *)reply.metadata.data, &call, error,
-                             1);
+                             shm_response);
     }
     VgiRpcReplyReset(&reply);
     if (call.error_type) VgiTraceError(trace, call.error_type);
     VgiTraceContextSwap(&previous, NULL);
     VgiTraceEnd(trace, rc || call.error.message[0]);
+    if (connection_shm) {
+        *connection_shm = call.shm;
+        call.shm = NULL;
+    }
     VgiRpcCallReset(&call);
     return rc;
 }
 
+int VgiRpcServerServeOne(struct VgiRpcServer *server, FILE *input, FILE *output,
+                         struct ArrowError *error) {
+    return serve_one(server, input, output, error, NULL);
+}
 int VgiRpcServerServe(struct VgiRpcServer *server, FILE *input, FILE *output,
                       struct ArrowError *error) {
     if (!server || !input || !output) return EINVAL;
+    struct VgiShm *shm = NULL;
+    int rc = 0;
     for (;;) {
         int first = fgetc(input);
-        if (first == EOF) return ferror(input) ? EIO : 0;
-        if (ungetc(first, input) == EOF) return EIO;
-        NANOARROW_RETURN_NOT_OK(VgiRpcServerServeOne(server, input, output, error));
+        if (first == EOF) {
+            rc = ferror(input) ? EIO : 0;
+            break;
+        }
+        if (ungetc(first, input) == EOF) {
+            rc = EIO;
+            break;
+        }
+        rc = serve_one(server, input, output, error, &shm);
+        if (rc) break;
     }
+    VgiShmFree(shm);
+    return rc;
 }
 
 int VgiRpcBatchInitNamed(struct VgiBatch *batch, const char *name, struct ArrowError *error) {

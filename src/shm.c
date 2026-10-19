@@ -167,7 +167,14 @@ int VgiShmFromMetadata(const char *md, struct VgiShm **out, struct ArrowError *e
         return EINVAL;
     memcpy(text, name.data, (size_t)name.size_bytes);
     text[name.size_bytes] = 0;
-    return VgiShmAttach(text, (int64_t)size, out, error);
+    if (*out && !strcmp((*out)->name, text) && (*out)->size == (int64_t)size) return validate(*out);
+    struct VgiShm *replacement = NULL;
+    int rc = VgiShmAttach(text, (int64_t)size, &replacement, error);
+    if (!rc) {
+        VgiShmFree(*out);
+        *out = replacement;
+    }
+    return rc;
 }
 static int allocate(struct VgiShm *s, uint64_t size, uint64_t *offset) {
     int rc = validate(s);

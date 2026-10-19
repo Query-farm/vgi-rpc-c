@@ -29,6 +29,7 @@
 #include "http_codec.h"
 #include "rpc_internal.h"
 #include "session.h"
+#include "shm_internal.h"
 #include "telemetry_internal.h"
 #include "token.h"
 
@@ -1057,6 +1058,7 @@ static int dispatch_core(struct HttpTask *task) {
     if (!rc)
         rc = VgiIpcReadBatch(bytes(&decoded), &s->call.request.schema, &s->call.request.array,
                              &s->call.metadata, &s->call.error);
+    if (!rc) rc = VgiShmResolve(NULL, &s->call.request, &s->call.metadata, &s->call.error);
     if (!rc && task->trace && !request_header(task->request, "traceparent")) {
         VgiTraceReparent(task->trace, (const char *)s->call.metadata.data);
         VgiTraceContextSwap(VgiTraceSpanContext(task->trace), NULL);

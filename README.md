@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="https://github.com/Query-farm/vgi-rpc-c/actions/workflows/ci.yml"><img src="https://github.com/Query-farm/vgi-rpc-c/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache 2.0"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Query_Farm_Source--Available-blue" alt="Query Farm Source-Available License"></a>
   <img src="https://img.shields.io/badge/C-11-blue" alt="C11">
 </p>
 
@@ -159,6 +159,9 @@ nullable, dictionary, timestamp, decimal, list, and struct batches themselves.
 See [the validation report](docs/conformance.md) for source revisions, counts,
 transport coverage, and sanitizer instructions.
 
+Contributor and coding-agent guidance is in [AGENTS.md](AGENTS.md).
+
 ## License
 
-[Apache License 2.0](LICENSE). Copyright Query Farm LLC.
+Query Farm Source-Available License, Version 1.0; see [LICENSE](LICENSE).
+Nanoarrow and its bundled flatcc runtime retain their upstream licenses.

@@ -74,6 +74,7 @@ install(TARGETS vgi_rpc EXPORT vgi_rpc-targets
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(DIRECTORY include/vgi_rpc DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+install(FILES LICENSE DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/vgi-rpc-c")
 install(EXPORT vgi_rpc-targets NAMESPACE vgi_rpc:: DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/vgi_rpc")
 configure_package_config_file(cmake/vgi_rpc-config.cmake.in
     "${CMAKE_CURRENT_BINARY_DIR}/vgi_rpc-config.cmake"

@@ -1,4 +1,5 @@
-/* Copyright 2026 Query Farm LLC. SPDX-License-Identifier: Apache-2.0 */
+/* Copyright 2026 Query Farm LLC.
+ * Query Farm Source-Available License, Version 1.0; see LICENSE. */
 #include <errno.h>
 #include <inttypes.h>
 #include <json-c/json.h>

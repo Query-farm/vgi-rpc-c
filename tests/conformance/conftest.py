@@ -1,5 +1,5 @@
 # © Copyright 2025-2026, Query.Farm LLC - https://query.farm
-# SPDX-License-Identifier: Apache-2.0
+# Query Farm Source-Available License, Version 1.0; see LICENSE.
 
 """Fixtures that drive the shared vgi-rpc pytest conformance suite.
 

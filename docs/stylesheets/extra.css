@@ -1,0 +1,100 @@
+/* Query.Farm's soil, cream, and field palette. */
+@import url("https://fonts.googleapis.com/css2?family=Petrona:wght@600;700&display=swap");
+
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #39291e;
+  --md-primary-bg-color: #f4ece0;
+  --md-accent-fg-color: #7d5714;
+  --md-accent-fg-color--transparent: #7d57141a;
+  --md-default-bg-color: #faf6ef;
+  --md-default-fg-color: #211a12;
+  --md-default-fg-color--light: #64584b;
+  --md-typeset-a-color: #356147;
+  --md-code-bg-color: #eee5d8;
+  --md-code-fg-color: #211a12;
+  --farm-border: #ded2c1;
+  --farm-hero: #eee5d8;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #211a12;
+  --md-primary-bg-color: #f4ece0;
+  --md-accent-fg-color: #efc56d;
+  --md-accent-fg-color--transparent: #efc56d1a;
+  --md-default-bg-color: #211a16;
+  --md-default-fg-color: #f4ece0;
+  --md-default-fg-color--light: #c8baa8;
+  --md-typeset-a-color: #a9c7ad;
+  --md-code-bg-color: #30271f;
+  --md-code-fg-color: #f4ece0;
+  --farm-border: #4d4033;
+  --farm-hero: #30271f;
+}
+
+.md-header__topic:first-child { font-family: "JetBrains Mono", monospace; }
+.md-header__button.md-logo img { width: auto; height: 1.8rem; }
+.md-typeset h1, .md-typeset h2, .md-typeset h3 {
+  color: var(--md-default-fg-color);
+  font-family: Petrona, Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+}
+.md-typeset h1 { font-size: 2.25em; }
+.md-typeset h2 { margin-top: 1.7em; }
+.md-typeset a { text-underline-offset: 0.2em; }
+.md-typeset p a:hover, .md-typeset li a:hover { text-decoration: underline; }
+.md-typeset .md-button { border-radius: 0.2rem; margin: 0.35rem 0.4rem 0 0; }
+.md-typeset .md-button--primary {
+  background: #356147;
+  border-color: #356147;
+  color: #ffffff;
+}
+.md-typeset .md-button:hover, .md-typeset .md-button:focus {
+  background: var(--md-default-fg-color);
+  border-color: var(--md-default-fg-color);
+  color: var(--md-default-bg-color);
+}
+.md-typeset table:not([class]) { border-color: var(--farm-border); }
+.md-typeset table:not([class]) th { background: var(--farm-hero); }
+.md-footer { background: #30271f; }
+.md-footer-meta { background: #211a12; }
+.hero {
+  background: var(--farm-hero);
+  border-left: 0.25rem solid #b98b3a;
+  border-radius: 0.2rem;
+  margin: 0 0 1.6rem;
+  padding: 1.3rem 1.6rem 1.5rem;
+}
+.hero h1 { margin: 0.35rem 0 0.65rem; }
+.hero > p:not(.eyebrow) { max-width: 33rem; }
+.hero .eyebrow {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.06em;
+  margin: 0;
+}
+
+/* Keep syntax contrast consistent across light and dark themes. */
+.md-typeset .highlight {
+  --md-code-bg-color: #1a1512;
+  --md-code-fg-color: #f4ece0;
+  --md-code-hl-color: #ffffff14;
+  --md-code-hl-number-color: #ebbc85;
+  --md-code-hl-special-color: #f3a5ad;
+  --md-code-hl-function-color: #a9d0f2;
+  --md-code-hl-constant-color: #ccb8ed;
+  --md-code-hl-keyword-color: #ccb8ed;
+  --md-code-hl-string-color: #b6d59d;
+  --md-code-hl-name-color: #f4ece0;
+  --md-code-hl-operator-color: #d2c5b3;
+  --md-code-hl-punctuation-color: #d2c5b3;
+  --md-code-hl-comment-color: #b5a48e;
+  --md-code-hl-generic-color: #b5a48e;
+  --md-code-hl-variable-color: #f4ece0;
+}
+.md-typeset .highlight .filename { background: #30271f; color: #f4ece0; }
+.md-typeset .highlight .md-code__button { color: #c8baa8; }
+@media (max-width: 600px) {
+  .hero { padding: 1rem; }
+  .hero h1 { font-size: 1.9em; }
+}

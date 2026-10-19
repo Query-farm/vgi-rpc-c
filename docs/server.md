@@ -9,7 +9,7 @@ exchanges for reflection; dynamically selected streams can declare UNKNOWN.
 Register protocols before serving. Registrations copy protocol strings; the
 method table and application state must outlive the server. Use
 `VgiRpcServerAddManagedProtocol` to transfer state with a cleanup callback.
-The [calculator](../examples/calculator.c) is a complete unary service.
+The [calculator](examples.md#server) is a complete unary service.
 
 ## Unary handlers
 

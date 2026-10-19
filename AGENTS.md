@@ -72,6 +72,13 @@ For documentation changes, check links and `git diff --check`. For installation
 changes, stage `cmake --install` under a temporary prefix and inspect the files.
 Update public documentation and capability claims when behavior changes.
 
+The documentation website is built from this repository with MkDocs Material.
+Install `requirements-docs.txt` into `.venv-docs`, then run
+`.venv-docs/bin/mkdocs build --strict` (or `serve` for a preview). Keep all pages
+in `mkdocs.yml` navigation. Examples and API declarations use source includes;
+edit their C files rather than duplicating them in Markdown. The `Docs` workflow
+validates pull requests and publishes `main` to `https://vgi-rpc-c.query.farm/`.
+
 ## License
 
 The repository uses the Query Farm Source-Available License, Version 1.0, matching

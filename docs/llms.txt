@@ -1,0 +1,19 @@
+# vgi-rpc for C
+
+> C11 clients and servers for the Arrow IPC RPC protocol, built with nanoarrow.
+
+- [Getting started](https://vgi-rpc-c.query.farm/getting-started/)
+- [Build and dependencies](https://vgi-rpc-c.query.farm/building/)
+- [Complete calculator examples](https://vgi-rpc-c.query.farm/examples/)
+- [Server and ownership](https://vgi-rpc-c.query.farm/server/)
+- [Native clients](https://vgi-rpc-c.query.farm/client/)
+- [HTTP hosting and identity](https://vgi-rpc-c.query.farm/hosting/)
+- [Shared memory](https://vgi-rpc-c.query.farm/shared-memory/)
+- [Worker pools](https://vgi-rpc-c.query.farm/pooling/)
+- [OpenTelemetry](https://vgi-rpc-c.query.farm/telemetry/)
+- [Public API reference](https://vgi-rpc-c.query.farm/api/)
+- [Conformance and limitations](https://vgi-rpc-c.query.farm/conformance/)
+- [Source repository](https://github.com/Query-farm/vgi-rpc-c)
+- [Wire protocol](https://vgi-rpc.query.farm/wire-protocol)
+
+License: Query Farm Source-Available License, Version 1.0.

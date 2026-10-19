@@ -10,7 +10,7 @@ No Arrow C++ or DuckDB library is linked.
 The default build fetches `rustyconover/arrow-nanoarrow` at
 `4d6dbbb190d9e3fa2718086f8610b375877ed506`, which supplies the dictionary IPC and
 message-metadata APIs. It applies
-[`nanoarrow-metadata-nul.patch`](../cmake/patches/nanoarrow-metadata-nul.patch),
+[`nanoarrow-metadata-nul.patch`](https://github.com/Query-farm/vgi-rpc-c/blob/main/cmake/patches/nanoarrow-metadata-nul.patch),
 from fork commit `d83a538b1c0442d9fe4f5ecf697ce681893bed2e`, to preserve embedded
 NUL bytes in metadata. These changes currently live on separate fork branches.
 

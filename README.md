@@ -118,6 +118,13 @@ support C++ callers through `extern "C"`.
 
 ## Documentation
 
+**[Read the documentation website](https://vgi-rpc-c.query.farm/)** for searchable
+guides, compiled examples, and the public API reference. The site builds from this
+repository and publishes automatically from `main`.
+
+
+- [Getting started](https://vgi-rpc-c.query.farm/getting-started/)
+- [Public API reference](https://vgi-rpc-c.query.farm/api/)
 - [Overview and API map](docs/index.md)
 - [Building and dependency versions](docs/building.md)
 - [Server handlers, streams, and ownership](docs/server.md)

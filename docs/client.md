@@ -3,7 +3,7 @@
 `VgiClientConnect` opens an owned subprocess, Unix socket, TCP socket, or HTTP
 connection. Set `VgiClientOptions.protocol` and, when declared by the service,
 `protocol_version`. For stdio use a NULL-terminated argv array; for other
-transports use `target`. The [compiled client example](../examples/client.c)
+transports use `target`. The [compiled client example](examples.md#client)
 shows both subprocess and HTTP calls.
 
 Build requests against the declared Arrow schema. Null samples and empty batches

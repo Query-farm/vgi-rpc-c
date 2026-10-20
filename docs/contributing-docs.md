@@ -40,17 +40,18 @@ in the guides consistent with implementation changes.
 The `Docs` GitHub Actions workflow builds pull requests and uploads the static
 site as the `documentation` artifact. Pushes to `main` build and deploy to the
 Cloudflare Pages project `vgi-rpc-c`, serving
-[vgi-rpc-c.pages.dev](https://vgi-rpc-c.pages.dev/). It also runs when included
+[vgi-rpc-c.query.farm](https://vgi-rpc-c.query.farm/). It also runs when included
 headers or examples change, and supports manual dispatch from `main`.
 
 Publishing requires the repository's `CLOUDFLARE_API_TOKEN` (Cloudflare Pages Edit)
 and `CLOUDFLARE_ACCOUNT_ID` Actions secrets. The Pages project and its custom domain
 are provisioned separately; the workflow updates the existing project.
 
-The intended custom domain is `vgi-rpc-c.query.farm`. Before switching the
-site URL, configure its CNAME to `vgi-rpc-c.pages.dev` and wait for Cloudflare
-to activate the domain and HTTPS certificate. Then update `site_url` in
-`mkdocs.yml`, `robots.txt`, and the documentation links to the custom domain.
+The custom domain `vgi-rpc-c.query.farm` is associated with the Pages project
+and uses a CNAME pointing to `vgi-rpc-c.pages.dev`. Keep that DNS record and the
+Pages domain association in place so Cloudflare can serve and renew HTTPS.
+The Pages address remains available as a fallback. `site_url` in `mkdocs.yml`,
+`robots.txt`, and public documentation links use the custom domain.
 
 The site and first-party source use the
 [Query Farm Source-Available License, Version 1.0](https://github.com/Query-farm/vgi-rpc-c/blob/main/LICENSE).

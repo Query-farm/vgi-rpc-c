@@ -77,7 +77,7 @@ Install `requirements-docs.txt` into `.venv-docs`, then run
 `.venv-docs/bin/mkdocs build --strict` (or `serve` for a preview). Keep all pages
 in `mkdocs.yml` navigation. Examples and API declarations use source includes;
 edit their C files rather than duplicating them in Markdown. The `Docs` workflow
-validates pull requests and publishes `main` to `https://vgi-rpc-c.pages.dev/`.
+validates pull requests and publishes `main` to `https://vgi-rpc-c.query.farm/`.
 
 ## License
 

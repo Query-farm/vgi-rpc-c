@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://vgi-rpc-c.pages.dev/sitemap.xml
+Sitemap: https://vgi-rpc-c.query.farm/sitemap.xml

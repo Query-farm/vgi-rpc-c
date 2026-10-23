@@ -114,12 +114,17 @@ int VgiValueDouble(const struct ArrowArrayView *value, const struct ArrowSchema 
         *out = ArrowArrayViewGetDoubleUnsafe(value, index);
         return 0;
     }
+    if (!schema) return EINVAL;
+    /* nanoarrow sets the decimal fields only for a decimal type, so the view is
+     * zeroed and the decimal branch is chosen by type, never by decimal_bitwidth. */
     struct ArrowSchemaView type;
+    memset(&type, 0, sizeof(type));
     NANOARROW_RETURN_NOT_OK(ArrowSchemaViewInit(&type, schema, error));
     struct ArrowBuffer text;
     ArrowBufferInit(&text);
     int rc = 0;
-    if (type.decimal_bitwidth) {
+    if (type.type == NANOARROW_TYPE_DECIMAL32 || type.type == NANOARROW_TYPE_DECIMAL64 ||
+        type.type == NANOARROW_TYPE_DECIMAL128 || type.type == NANOARROW_TYPE_DECIMAL256) {
         struct ArrowDecimal decimal;
         ArrowDecimalInit(&decimal, type.decimal_bitwidth, type.decimal_precision,
                          type.decimal_scale);
@@ -171,6 +176,13 @@ int VgiBatchSetBytes(struct VgiBatch *batch, const char *name, const void *data,
     struct ArrowArray *col = VgiBatchColumn(batch, name);
     if (!col) return ENOENT;
     struct ArrowBufferView view = {{data}, size};
+    /* A dictionary-encoded binary column appends the value to its dictionary
+     * and the value's index to the column. */
+    if (col->dictionary) {
+        int64_t index = col->dictionary->length;
+        NANOARROW_RETURN_NOT_OK(ArrowArrayAppendBytes(col->dictionary, view));
+        return ArrowArrayAppendInt(col, index);
+    }
     return ArrowArrayAppendBytes(col, view);
 }
 int VgiBatchSetInt(struct VgiBatch *batch, const char *name, int64_t value) {

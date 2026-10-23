@@ -27,6 +27,7 @@ int VgiBatchChild(const struct VgiBatch *batch, const char *name, struct VgiBatc
 /* Setters append one value. FinishRow fills omitted fields with null when
  * nullable, otherwise an empty/default value; use Finish for explicit rows. */
 int VgiBatchSetString(struct VgiBatch *batch, const char *name, const char *value);
+/* Binary columns may be plain or dictionary-encoded (dictionary<int32, binary>). */
 int VgiBatchSetBytes(struct VgiBatch *batch, const char *name, const void *data, int64_t size);
 int VgiBatchSetInt(struct VgiBatch *batch, const char *name, int64_t value);
 int VgiBatchSetNull(struct VgiBatch *batch, const char *name);
@@ -43,6 +44,8 @@ int VgiBatchCoerce(const struct VgiBatch *input, const struct ArrowSchema *schem
                    struct VgiBatch *out, struct ArrowError *error);
 struct ArrowStringView VgiValueString(const struct ArrowArrayView *value, int64_t index);
 int VgiValueIsNumeric(const struct ArrowArrayView *value);
+/* Numbers convert directly, decimals and text through their decimal string;
+ * any other type (nested, interval, union, ...) fails with EINVAL. */
 int VgiValueDouble(const struct ArrowArrayView *value, const struct ArrowSchema *schema,
                    int64_t index, double *out, struct ArrowError *error);
 #ifdef __cplusplus

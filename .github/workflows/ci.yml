@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Query-farm/vgi-rpc-python
-          ref: 73108975795d63dd8d1da03117b286d7a4aeb6ef
+          ref: 2daca0968af44c8d503d2568ada8a79362f265cd  # v0.52.3
           path: reference
       - name: Python reference and test dependencies
         run: python -m pip install -e './reference[http,conformance,mtls,external,otel]' pytest pytest-timeout ruff opentelemetry-proto

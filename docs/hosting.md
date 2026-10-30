@@ -29,7 +29,12 @@ For dynamic credentials, supply `authenticate` or `authenticate_request`.
 Identity values are copied into the call, including claims and authentication
 time. Invalid supplied credentials are rejected even when anonymous requests
 are otherwise permitted. Framework Identity and rotated grant-key helpers are
-available in `identity.h` and `credentials.h`.
+available in `identity.h` and `credentials.h`. The framework protocol is
+`vgi_rpc.Identity.v2`: a grant's `expires_at` is a non-null
+`timestamp[us, tz=UTC]`, so a `mint_grant` hook sets
+`VgiIssuedGrant.expires_at_us` (microseconds since the Unix epoch). The older
+`expires_at` field, in Unix seconds, is still accepted when `expires_at_us` is
+zero.
 
 Proxy proofs support off, allow, and require modes, origin binding, key rotation,
 clock skew, and a bounded nonce replay cache. Set the proof options explicitly

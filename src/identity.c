@@ -144,7 +144,7 @@ static int issue(struct Identity *s, struct VgiRpcCall *c, struct VgiRpcReply *r
         else {
             if (ttl > k->max_ttl_seconds) ttl = k->max_ttl_seconds;
             int64_t now = (int64_t)time(NULL);
-            if (now > INT64_MAX - ttl)
+            if (now > INT64_MAX / 1000000 - ttl)
                 rc = EINVAL;
             else {
                 unsigned char raw[16];
@@ -160,7 +160,7 @@ static int issue(struct Identity *s, struct VgiRpcCall *c, struct VgiRpcReply *r
                 rc = VgiGrantMint(k, &claims, NULL, &token);
                 result.token = (char *)token.data;
                 result.grant_id = id;
-                result.expires_at = (double)claims.expires_at;
+                result.expires_at_us = claims.expires_at * 1000000;
             }
         }
     }
@@ -169,11 +169,16 @@ static int issue(struct Identity *s, struct VgiRpcCall *c, struct VgiRpcReply *r
     else if (rc && !c->error_type)
         rc = fail(c, "GrantRefusedError", "grant_refused", "grant request refused");
     struct VgiBatch payload = {0};
-    if (!rc && (!result.token || !isfinite(result.expires_at))) rc = EINVAL;
+    int64_t expires_us = result.expires_at_us;
+    if (!rc && !expires_us) {
+        double us = result.expires_at * 1e6;
+        if (isfinite(us) && us > -9.2e18 && us < 9.2e18) expires_us = llround(us);
+    }
+    if (!rc && (!result.token || !expires_us)) rc = EINVAL;
     if (!rc) rc = VgiRpcBatchInitNamed(&payload, "IdentityIssueGrantResult", &c->error);
     if (!rc) rc = VgiBatchSetString(&payload, "token", result.token);
     if (!rc) rc = VgiBatchSetString(&payload, "grant_id", result.grant_id ? result.grant_id : "");
-    if (!rc) rc = ArrowArrayAppendDouble(VgiBatchColumn(&payload, "expires_at"), result.expires_at);
+    if (!rc) rc = ArrowArrayAppendInt(VgiBatchColumn(&payload, "expires_at"), expires_us);
     if (!rc) rc = VgiBatchFinishRow(&payload, &c->error);
     if (!rc) rc = VgiRpcReplyPayload(c, reply, &payload);
     VgiBatchReset(&payload);

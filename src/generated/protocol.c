@@ -106,7 +106,7 @@ int VgiSchemaIdentityIssueGrantParams(struct ArrowSchema *out, struct ArrowError
 int VgiSchemaIdentityIssueGrantEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_30, out, error);
 }
-static const struct VgiSchemaNode node_40 = {"g", "expires_at", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_40 = {"tsu:UTC", "expires_at", NULL, 0, 0, NULL, NULL};
 static const struct VgiSchemaNode node_41 = {"u", "grant_id", NULL, 0, 0, NULL, NULL};
 static const struct VgiSchemaNode *const children_42[] = {&node_31, &node_40, &node_41};
 static const struct VgiSchemaNode node_42 = {"+s", "", NULL, 0, 3, children_42, NULL};

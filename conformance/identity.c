@@ -78,7 +78,7 @@ static int mint(void *state, struct VgiRpcCall *call, const char *purpose,
     }
     out->token = token;
     out->grant_id = !strcmp(purpose, "conformance-minimal") ? "" : "conformance-grant-id";
-    out->expires_at = 1893456000.0;
+    out->expires_at_us = INT64_C(1893456000000000); /* 2030-01-01T00:00:00Z */
     return 0;
 }
 static void release(void *state, void *result, int is_grant) {

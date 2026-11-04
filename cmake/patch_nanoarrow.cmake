@@ -1,4 +1,4 @@
-# From rustyconover/arrow-nanoarrow commit d83a538b1c0442d9fe4f5ecf697ce681893bed2e.
+# From arrow-nanoarrow fork commit d83a538b1c0442d9fe4f5ecf697ce681893bed2e.
 # This fix and the writer metadata API currently live on separate fork branches.
 find_package(Git REQUIRED)
 execute_process(COMMAND "${GIT_EXECUTABLE}" apply --reverse --check "${VGI_PATCH}"

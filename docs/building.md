@@ -7,7 +7,7 @@ No Arrow C++ or DuckDB library is linked.
 
 ## nanoarrow source
 
-The default build fetches `rustyconover/arrow-nanoarrow` at
+The default build fetches `Query-farm/arrow-nanoarrow` at
 `4d6dbbb190d9e3fa2718086f8610b375877ed506`, which supplies the dictionary IPC and
 message-metadata APIs. It applies
 [`nanoarrow-metadata-nul.patch`](https://github.com/Query-farm/vgi-rpc-c/blob/main/cmake/patches/nanoarrow-metadata-nul.patch),
@@ -18,6 +18,15 @@ NUL bytes in metadata. These changes currently live on separate fork branches.
 supplied, so include both changes before building. `VGI_NANOARROW_REVISION`
 overrides the fetched revision. Nanoarrow's CMake probes a C++ compiler; the
 runtime and bundled Arrow source files still compile as C.
+
+Fetching needs network access at configure time, including when building from a
+release tarball.
+
+## Platforms
+
+CI builds and tests Ubuntu and macOS. nanoarrow's build also needs a `zstd` CMake
+package, which Amazon Linux's `libzstd-devel` does not provide, so configuring
+there fails until one is on `CMAKE_PREFIX_PATH`.
 
 ## Build options
 

@@ -16,7 +16,7 @@
 </p>
 
 Build services and clients around Arrow C Data schemas and arrays. The runtime
-uses [nanoarrow](https://github.com/rustyconover/arrow-nanoarrow) for Arrow IPC,
+uses [nanoarrow](https://github.com/Query-farm/arrow-nanoarrow) for Arrow IPC,
 including dictionaries, nested types, decimals, and per-batch metadata. The
 library and its Arrow dependencies compile as C.
 
@@ -44,7 +44,9 @@ scope and [hosting](docs/hosting.md) for HTTP deployment options.
 ## Installation
 
 Requires CMake 3.20+, a C11 compiler, pkg-config, json-c, libsodium, libevent,
-libcurl, zstd, LZ4, zlib, and platform threads. POSIX platforms are supported.
+libcurl, zstd, LZ4, zlib, and platform threads. POSIX platforms are supported;
+see [building](docs/building.md) for the tested platforms. The API may change
+between 0.x minor releases.
 
 ```sh
 # macOS

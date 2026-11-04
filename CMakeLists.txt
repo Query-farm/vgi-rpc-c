@@ -14,7 +14,7 @@ if(VGI_RPC_SANITIZE AND NOT MSVC)
 endif()
 set(VGI_NANOARROW_SOURCE_DIR "" CACHE PATH "Use a local nanoarrow checkout")
 set(VGI_NANOARROW_REVISION "4d6dbbb190d9e3fa2718086f8610b375877ed506" CACHE STRING
-    "Pinned rustyconover/arrow-nanoarrow revision (IPC dictionaries and message metadata)")
+    "Pinned Query-farm/arrow-nanoarrow revision (IPC dictionaries and message metadata)")
 set(NANOARROW_IPC ON CACHE BOOL "" FORCE)
 set(NANOARROW_IPC_WITH_ZSTD ON CACHE BOOL "" FORCE)
 set(NANOARROW_IPC_WITH_LZ4 ON CACHE BOOL "" FORCE)
@@ -27,7 +27,7 @@ if(VGI_NANOARROW_SOURCE_DIR)
 else()
     include(FetchContent)
     FetchContent_Declare(nanoarrow
-        GIT_REPOSITORY https://github.com/rustyconover/arrow-nanoarrow.git
+        GIT_REPOSITORY https://github.com/Query-farm/arrow-nanoarrow.git
         GIT_TAG "${VGI_NANOARROW_REVISION}"
         PATCH_COMMAND "${CMAKE_COMMAND}"
             "-DVGI_PATCH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/patches/nanoarrow-metadata-nul.patch"

@@ -36,3 +36,16 @@ jobs:
           python tests/check_shm_negotiation.py
       - name: OpenTelemetry export and propagation
         run: python tests/check_telemetry.py
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native dependencies
+        run: brew install pkg-config json-c libsodium libevent curl zstd lz4
+      - name: Build and native tests
+        run: |
+          export PKG_CONFIG_PATH="$(brew --prefix curl)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 4
+          ctest --test-dir build --output-on-failure

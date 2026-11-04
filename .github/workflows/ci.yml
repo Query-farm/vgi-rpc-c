@@ -2,6 +2,10 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  # Python reference changes do not trigger this repo, so test against them daily.
+  schedule:
+    - cron: "17 10 * * *"
 jobs:
   conformance:
     runs-on: ubuntu-latest
@@ -15,7 +19,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Query-farm/vgi-rpc-python
-          ref: 2daca0968af44c8d503d2568ada8a79362f265cd  # v0.52.3
           path: reference
       - name: Python reference and test dependencies
         run: python -m pip install -e './reference[http,conformance,mtls,external,otel]' pytest pytest-timeout ruff opentelemetry-proto

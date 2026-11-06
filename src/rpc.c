@@ -53,16 +53,6 @@ static char *view_text(struct ArrowStringView value) {
     }
     return out;
 }
-int VgiMetadataSet(struct ArrowBuffer *metadata, const char *key, const char *value) {
-    if (!metadata->data) NANOARROW_RETURN_NOT_OK(ArrowMetadataBuilderInit(metadata, NULL));
-    return ArrowMetadataBuilderSet(metadata, ArrowCharView(key), ArrowCharView(value));
-}
-struct ArrowStringView VgiMetadataGet(const char *metadata, const char *key) {
-    struct ArrowStringView value = {NULL, 0};
-    if (metadata && ArrowMetadataGetValue(metadata, ArrowCharView(key), &value))
-        value = (struct ArrowStringView){NULL, 0};
-    return value;
-}
 struct VgiRpcLogEntry {
     struct ArrowBuffer metadata;
     struct VgiRpcLogEntry *next;
@@ -367,7 +357,7 @@ static int reflection(void *state, struct VgiRpcCall *call, struct VgiRpcReply *
     if (!strcmp(call->method->name, "list_protocols")) {
         rc = VgiRpcBatchInitNamed(&payload, "RpcProtocolList", &call->error);
         if (!rc) rc = VgiBatchSetString(&payload, "server_id", server->id);
-        if (!rc) rc = VgiBatchSetString(&payload, "server_version", "vgi-rpc-c/0.1.1");
+        if (!rc) rc = VgiBatchSetString(&payload, "server_version", "vgi-rpc-c/" VGI_RPC_VERSION);
         if (!rc) rc = VgiBatchSetString(&payload, "request_version", "1");
         struct ArrowArray *list = rc ? NULL : VgiBatchColumn(&payload, "protocols");
         for (size_t i = 0; !rc && i < server->count; ++i)
@@ -960,14 +950,6 @@ int VgiRpcServerServe(struct VgiRpcServer *server, FILE *input, FILE *output,
         if (rc) break;
     }
     VgiShmFree(shm);
-    return rc;
-}
-
-int VgiRpcBatchInitNamed(struct VgiBatch *batch, const char *name, struct ArrowError *error) {
-    struct ArrowSchema schema = {0};
-    int rc = VgiRpcSchemaInit(!strcmp(name, "Empty") ? "RpcEmpty" : name, &schema, error);
-    if (!rc) rc = VgiBatchInit(batch, &schema, error);
-    if (schema.release) ArrowSchemaRelease(&schema);
     return rc;
 }
 

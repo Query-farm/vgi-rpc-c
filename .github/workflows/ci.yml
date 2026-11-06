@@ -25,7 +25,7 @@ jobs:
       - name: Build and native tests
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel 4
+          cmake --build build --parallel 12
           ctest --test-dir build --output-on-failure
       - name: Generated schemas and Python tooling
         run: |
@@ -48,7 +48,45 @@ jobs:
         run: brew install pkg-config json-c libsodium libevent curl zstd lz4
       - name: Build and native tests
         run: |
-          export PKG_CONFIG_PATH="$(brew --prefix curl)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          PKG_CONFIG_PATH="$(brew --prefix curl)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          export PKG_CONFIG_PATH
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel 4
+          cmake --build build --parallel 12
           ctest --test-dir build --output-on-failure
+
+  windows-client:
+    runs-on: windows-2022
+    env:
+      VCPKG_COMMIT: 05442024c3fda64320bd25d2251cc9807b84fb6f
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/checkout@v4
+        with:
+          repository: Query-farm/vgi-rpc-python
+          path: reference
+      - name: Python reference worker
+        run: python -m pip install -e './reference[http,conformance,mtls,external]'
+      - name: Bootstrap vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          git -C vcpkg checkout $env:VCPKG_COMMIT
+          .\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+      - name: Configure client runtime
+        run: >
+          cmake -S . -B build -A x64
+          -DVGI_RPC_CLIENT_ONLY=ON
+          -DVGI_RPC_BUILD_TESTS=ON
+          -DVGI_RPC_BUILD_EXAMPLES=OFF
+          -DCMAKE_TOOLCHAIN_FILE="$env:GITHUB_WORKSPACE\vcpkg\scripts\buildsystems\vcpkg.cmake"
+      - name: Build and install client runtime
+        run: |
+          cmake --build build --config Release --parallel 12
+          cmake --install build --config Release --prefix install
+      - name: Native subprocess, shared-memory, TCP, HTTP, and TLS integration
+        run: |
+          $deps = "$env:GITHUB_WORKSPACE\build\vcpkg_installed\x64-windows"
+          $env:PATH = "$deps\bin;$deps\debug\bin;$env:PATH"
+          python tests/check_native_client.py --build-dir build

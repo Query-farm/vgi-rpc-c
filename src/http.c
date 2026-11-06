@@ -1564,10 +1564,10 @@ static void receive(struct evhttp_request *request, void *opaque) {
         json_object_object_add(task->log, "server_id",
                                json_object_new_string(VgiRpcServerId(server->rpc)));
         json_object_object_add(task->log, "server_version",
-                               json_object_new_string("vgi-rpc-c/0.1.1"));
+                               json_object_new_string("vgi-rpc-c/" VGI_RPC_VERSION));
         json_object_object_add(task->log, "principal", json_object_new_string(""));
         json_object_object_add(task->log, "auth_domain", json_object_new_string(""));
-        const char *address = NULL;
+        char *address = NULL;
         ev_uint16_t peer_port = 0;
         evhttp_connection_get_peer(evhttp_request_get_connection(request), &address, &peer_port);
         json_object_object_add(task->log, "remote_addr",

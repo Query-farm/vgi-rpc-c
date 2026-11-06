@@ -1,15 +1,14 @@
 #define _POSIX_C_SOURCE 200809L
 #include <curl/curl.h>
 #include <errno.h>
-#include <pthread.h>
 #include <sodium.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h>
 #include <time.h>
 
 #include "external_internal.h"
 #include "http_codec.h"
+#include "platform.h"
 #include "rpc_internal.h"
 
 static int https_only(void *state, const char *url) {
@@ -40,9 +39,23 @@ struct Download {
     int64_t limit;
     int error;
 };
-static pthread_once_t curl_once = PTHREAD_ONCE_INIT;
 static CURLcode curl_initialized;
 static void curl_start(void) { curl_initialized = curl_global_init(CURL_GLOBAL_DEFAULT); }
+#if defined(_WIN32)
+static INIT_ONCE curl_once = INIT_ONCE_STATIC_INIT;
+static BOOL CALLBACK curl_start_windows(PINIT_ONCE once, PVOID parameter, PVOID *context) {
+    (void)once;
+    (void)parameter;
+    (void)context;
+    curl_start();
+    return TRUE;
+}
+static void ensure_curl(void) { InitOnceExecuteOnce(&curl_once, curl_start_windows, NULL, NULL); }
+#else
+#include <pthread.h>
+static pthread_once_t curl_once = PTHREAD_ONCE_INIT;
+static void ensure_curl(void) { pthread_once(&curl_once, curl_start); }
+#endif
 static size_t receive_body(char *data, size_t size, size_t count, void *state) {
     struct Download *download = state;
     if (size && count > SIZE_MAX / size) {
@@ -84,7 +97,7 @@ int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, cons
     if (!o || !method || !url || !out || out->size_bytes || o->max_fetch_bytes < 1 ||
         o->max_decompressed_bytes < 1 || !o->timeout_seconds || body.size_bytes < 0)
         return EINVAL;
-    pthread_once(&curl_once, curl_start);
+    ensure_curl();
     if (curl_initialized) return EIO;
     char *current = strdup(url);
     if (!current) return ENOMEM;
@@ -275,45 +288,46 @@ static int schema_equal(const struct ArrowSchema *a, const struct ArrowSchema *b
         if (!schema_equal(a->children[i], b->children[i])) return 0;
     return !a->dictionary || schema_equal(a->dictionary, b->dictionary);
 }
-int VgiExternalResolve(struct VgiRpcCall *call, struct VgiBatch *batch,
-                       struct ArrowBuffer *metadata) {
+int VgiExternalResolveOptions(const struct VgiExternalOptions *options, struct VgiBatch *batch,
+                              struct ArrowBuffer *metadata, struct ArrowError *error,
+                              VgiExternalLogFn receive_log, void *log_state) {
     struct ArrowStringView location =
         VgiMetadataGet((const char *)metadata->data, VGI_RPC_LOCATION_KEY);
     if (!location.data) return 0;
-    const struct VgiExternalOptions *options = VgiRpcServerExternal(call->server);
-    if (!options)
-        return VgiRpcFail(call, "RuntimeError", "FAILED_PRECONDITION", "",
-                          "External locations are not configured");
-    if (batch->array.length)
-        return VgiRpcFail(call, "ValueError", "INVALID_ARGUMENT", "",
-                          "External pointer must have zero rows");
+    if (!options) {
+        ArrowErrorSet(error, "External locations are not configured");
+        return EINVAL;
+    }
+    if (batch->array.length) {
+        ArrowErrorSet(error, "External pointer must have zero rows");
+        return EINVAL;
+    }
     char *url = metadata_text(location);
     char *digest =
         metadata_text(VgiMetadataGet((const char *)metadata->data, VGI_RPC_LOCATION_SHA256_KEY));
     int rc = url && digest ? 0 : EINVAL;
-    struct timespec start, end;
-    clock_gettime(CLOCK_MONOTONIC, &start);
+    double start = VgiMonotonicSeconds();
     struct ArrowBuffer payload, inner_metadata, value_metadata;
     ArrowBufferInit(&payload);
     ArrowBufferInit(&inner_metadata);
     ArrowBufferInit(&value_metadata);
-    if (!rc) rc = VgiExternalFetch(options, url, digest, &payload, &call->error);
-    clock_gettime(CLOCK_MONOTONIC, &end);
+    if (!rc) rc = VgiExternalFetch(options, url, digest, &payload, error);
+    double end = VgiMonotonicSeconds();
     struct PayloadInput input = {&payload, 0};
     struct ArrowIpcInputStream source = {payload_read, payload_release, &input};
     struct VgiIpcReader reader = {0};
     struct VgiBatch incoming = {0}, value = {0};
     if (!rc) rc = VgiIpcReaderInit(&reader, &source);
-    if (!rc) rc = VgiIpcReaderSchema(&reader, &incoming.schema, &call->error);
+    if (!rc) rc = VgiIpcReaderSchema(&reader, &incoming.schema, error);
     if (!rc && !schema_equal(&incoming.schema, &batch->schema)) {
-        ArrowErrorSet(&call->error, "External payload schema differs from its pointer");
+        ArrowErrorSet(error, "External payload schema differs from its pointer");
         rc = EINVAL;
     }
     while (!rc) {
-        rc = VgiIpcReaderNext(&reader, &incoming.array, &inner_metadata, &call->error);
+        rc = VgiIpcReaderNext(&reader, &incoming.array, &inner_metadata, error);
         if (rc || !incoming.array.release) break;
         if (VgiMetadataGet((const char *)inner_metadata.data, VGI_RPC_LOCATION_KEY).data) {
-            ArrowErrorSet(&call->error, "Nested external pointers are not allowed");
+            ArrowErrorSet(error, "Nested external pointers are not allowed");
             rc = EINVAL;
             break;
         }
@@ -328,15 +342,15 @@ int VgiExternalResolve(struct VgiRpcCall *call, struct VgiBatch *batch,
             if (!level_text || !message || !extra || incoming.array.length)
                 rc = EINVAL;
             else if (!strcmp(level_text, "EXCEPTION")) {
-                ArrowErrorSet(&call->error, "External payload contains an exception");
+                ArrowErrorSet(error, "External payload contains an exception");
                 rc = EINVAL;
-            } else
-                rc = VgiRpcLogExtra(call, level_text, message, *extra ? extra : NULL);
+            } else if (receive_log)
+                rc = receive_log(log_state, level_text, message, *extra ? extra : NULL);
             free(level_text);
             free(message);
             free(extra);
         } else if (value.array.release) {
-            ArrowErrorSet(&call->error, "External payload contains multiple data batches");
+            ArrowErrorSet(error, "External payload contains multiple data batches");
             rc = EINVAL;
         } else {
             rc = ArrowSchemaDeepCopy(&incoming.schema, &value.schema);
@@ -346,15 +360,13 @@ int VgiExternalResolve(struct VgiRpcCall *call, struct VgiBatch *batch,
         if (incoming.array.release) ArrowArrayRelease(&incoming.array);
     }
     if (!rc && (!value.array.release || input.position != payload.size_bytes)) {
-        ArrowErrorSet(&call->error,
-                      "External payload must contain exactly one complete data stream");
+        ArrowErrorSet(error, "External payload must contain exactly one complete data stream");
         rc = EINVAL;
     }
     if (!rc) rc = VgiMetadataSet(&value_metadata, VGI_RPC_LOCATION_SOURCE_KEY, url);
     if (!rc) {
         char duration[64];
-        double milliseconds =
-            (end.tv_sec - start.tv_sec) * 1000.0 + (end.tv_nsec - start.tv_nsec) / 1000000.0;
+        double milliseconds = (end - start) * 1000.0;
         snprintf(duration, sizeof(duration), "%.6f", milliseconds);
         rc = VgiMetadataSet(&value_metadata, VGI_RPC_LOCATION_FETCH_MS_KEY, duration);
     }
@@ -364,11 +376,8 @@ int VgiExternalResolve(struct VgiRpcCall *call, struct VgiBatch *batch,
         memset(&value, 0, sizeof(value));
         ArrowBufferReset(metadata);
         ArrowBufferMove(&value_metadata, metadata);
-    } else {
-        call->error_type = "ExternalLocationError";
-        call->error_code = "INVALID_ARGUMENT";
-        if (!call->error.message[0]) ArrowErrorSet(&call->error, "Invalid external payload");
-    }
+    } else if (!error->message[0])
+        ArrowErrorSet(error, "Invalid external payload");
     VgiBatchReset(&incoming);
     VgiBatchReset(&value);
     VgiIpcReaderReset(&reader);
@@ -380,3 +389,20 @@ int VgiExternalResolve(struct VgiRpcCall *call, struct VgiBatch *batch,
     free(digest);
     return rc;
 }
+
+#if !defined(VGI_RPC_CLIENT_ONLY)
+static int server_log(void *state, const char *level, const char *message, const char *extra) {
+    return VgiRpcLogExtra((struct VgiRpcCall *)state, level, message, extra);
+}
+
+int VgiExternalResolve(struct VgiRpcCall *call, struct VgiBatch *batch,
+                       struct ArrowBuffer *metadata) {
+    int rc = VgiExternalResolveOptions(VgiRpcServerExternal(call->server), batch, metadata,
+                                       &call->error, server_log, call);
+    if (rc) {
+        call->error_type = "ExternalLocationError";
+        call->error_code = "INVALID_ARGUMENT";
+    }
+    return rc;
+}
+#endif

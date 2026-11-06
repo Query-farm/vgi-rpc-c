@@ -35,7 +35,7 @@ struct VgiClientOptions {
     const char *tls_ca_file;             /* NULL uses system trust; verification stays enabled */
     const char *tls_certificate_file;
     const char *tls_key_file;
-    int64_t shared_memory_size;      /* Zero disables; stdio and Unix sockets only. */
+    int64_t shared_memory_size;      /* Zero disables; stdio and local IPC only. */
     int64_t shared_memory_threshold; /* 128 KiB default; zero forces eligible batches. */
     struct VgiTelemetry *telemetry;  /* Borrowed; outlives the client. */
 };

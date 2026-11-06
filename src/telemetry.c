@@ -234,7 +234,7 @@ static struct json_object *resource(struct VgiTelemetry *t, const char *scope_ke
     struct json_object *scopes = json_object_new_array(), *group = json_object_new_object(),
                        *scope = json_object_new_object();
     string(scope, "name", "vgi_rpc");
-    string(scope, "version", "0.1.1");
+    string(scope, "version", VGI_RPC_VERSION);
     json_object_object_add(group, "scope", scope);
     json_object_object_add(group, data_key, data);
     json_object_array_add(scopes, group);

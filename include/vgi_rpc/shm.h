@@ -4,7 +4,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* POSIX shared-memory side channel. One lockstep connection per segment.
+/* Native shared-memory side channel (POSIX shm or Windows file mapping).
+ * One lockstep connection per segment.
  * Resolved batches own their buffers and remain valid after reuse or close. */
 struct VgiShm;
 struct VgiShmStats {

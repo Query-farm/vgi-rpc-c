@@ -8,4 +8,7 @@ int VgiExternalHttp(const struct VgiExternalOptions *, const char *method, const
                     struct ArrowError *error);
 struct VgiRpcCall;
 int VgiExternalResolve(struct VgiRpcCall *, struct VgiBatch *, struct ArrowBuffer *);
+typedef int (*VgiExternalLogFn)(void *, const char *, const char *, const char *);
+int VgiExternalResolveOptions(const struct VgiExternalOptions *, struct VgiBatch *,
+                              struct ArrowBuffer *, struct ArrowError *, VgiExternalLogFn, void *);
 #endif

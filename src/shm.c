@@ -1,13 +1,17 @@
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
-#include <fcntl.h>
 #include <inttypes.h>
 #include <sodium.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(_WIN32)
+#include "platform.h"
+#else
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include "shm_internal.h"
 
@@ -22,6 +26,9 @@ struct VgiShm {
     int64_t size, threshold;
     char name[256];
     int owner;
+#if defined(_WIN32)
+    HANDLE mapping;
+#endif
     struct VgiShmStats stats;
 };
 static uint64_t get(const uint8_t *p, int n) {
@@ -53,6 +60,34 @@ static int mapping(const char *name, int64_t size, int create, struct VgiShm **o
         return EINVAL;
     if (*name == '/') ++name;
     if (!*name || strlen(name) >= 240 || strchr(name, '/')) return EINVAL;
+#if defined(_WIN32)
+    struct VgiShm *s = calloc(1, sizeof(*s));
+    if (!s) return ENOMEM;
+    HANDLE mapping_handle;
+    if (create) {
+        mapping_handle = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
+                                            (DWORD)((uint64_t)size >> 32),
+                                            (DWORD)((uint64_t)size & 0xffffffffU), name);
+        if (mapping_handle && GetLastError() == ERROR_ALREADY_EXISTS) {
+            CloseHandle(mapping_handle);
+            mapping_handle = NULL;
+            SetLastError(ERROR_ALREADY_EXISTS);
+        }
+    } else {
+        mapping_handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, name);
+    }
+    int rc = mapping_handle ? 0 : EIO;
+    if (!rc) {
+        s->data = (uint8_t *)MapViewOfFile(mapping_handle, FILE_MAP_ALL_ACCESS, 0, 0, (SIZE_T)size);
+        if (!s->data) rc = EIO;
+    }
+    if (!rc) {
+        s->mapping = mapping_handle;
+        s->size = size;
+    } else if (mapping_handle) {
+        CloseHandle(mapping_handle);
+    }
+#else
     char path[256];
     snprintf(path, sizeof(path), "/%s", name);
     int fd = shm_open(path, O_RDWR | (create ? O_CREAT | O_EXCL : 0), 0600);
@@ -69,13 +104,6 @@ static int mapping(const char *name, int64_t size, int create, struct VgiShm **o
     if (!rc && !s) rc = ENOMEM;
     if (!rc) {
         s->size = st.st_size;
-        s->threshold = 128 * 1024;
-        const char *threshold = getenv("VGI_RPC_SHM_MIN_BATCH_BYTES");
-        if (threshold && *threshold) {
-            char *end;
-            long long value = strtoll(threshold, &end, 10);
-            if (!*end && value >= 0) s->threshold = value;
-        }
         s->data = mmap(NULL, (size_t)s->size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         if (s->data == MAP_FAILED) {
             s->data = NULL;
@@ -83,7 +111,15 @@ static int mapping(const char *name, int64_t size, int create, struct VgiShm **o
         }
     }
     close(fd);
+#endif
     if (!rc) {
+        s->threshold = 128 * 1024;
+        const char *threshold = getenv("VGI_RPC_SHM_MIN_BATCH_BYTES");
+        if (threshold && *threshold) {
+            char *end;
+            long long value = strtoll(threshold, &end, 10);
+            if (!*end && value >= 0) s->threshold = value;
+        }
         snprintf(s->name, sizeof(s->name), "%s", name);
         if (create) {
             memcpy(s->data, "VGIS", 4);
@@ -94,9 +130,14 @@ static int mapping(const char *name, int64_t size, int create, struct VgiShm **o
         rc = validate(s);
     }
     if (rc) {
+#if defined(_WIN32)
+        if (s && s->data) UnmapViewOfFile(s->data);
+        if (s && s->mapping) CloseHandle(s->mapping);
+#else
         if (s && s->data) munmap(s->data, (size_t)s->size);
-        free(s);
         if (create) shm_unlink(path);
+#endif
+        free(s);
         ArrowErrorSet(error, "Invalid or unavailable shared-memory segment: %s", strerror(rc));
     } else {
         s->owner = create;
@@ -118,12 +159,17 @@ int VgiShmAttach(const char *name, int64_t size, struct VgiShm **out, struct Arr
 }
 void VgiShmFree(struct VgiShm *s) {
     if (!s) return;
+#if defined(_WIN32)
+    UnmapViewOfFile(s->data);
+    CloseHandle(s->mapping);
+#else
     munmap(s->data, (size_t)s->size);
     if (s->owner) {
         char path[260];
         snprintf(path, sizeof(path), "/%s", s->name);
         shm_unlink(path);
     }
+#endif
     free(s);
 }
 const char *VgiShmName(const struct VgiShm *s) { return s ? s->name : NULL; }

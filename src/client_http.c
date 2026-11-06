@@ -6,12 +6,15 @@
 #include <sodium.h>
 #include <stdlib.h>
 #include <string.h>
+#if !defined(_WIN32)
 #include <strings.h>
+#endif
 #include <zstd.h>
 
 #include "client_internal.h"
 #include "external_internal.h"
 #include "http_codec.h"
+#include "platform.h"
 #include "rpc_internal.h"
 #include "telemetry_internal.h"
 
@@ -189,10 +192,10 @@ static int exchange_http(struct VgiClient *c, const char *verb, const char *path
     if (!rc) rc = append_header(&headers, "Accept-Encoding", "identity");
     if (!rc) rc = append_header(&headers, "X-VGI-Accept-Encoding", "zstd,gzip,identity");
     if (!rc) rc = append_header(&headers, "Expect", "");
-    json_object_object_foreach(h->defaults, key, value) {
+    json_object_object_foreach(h->defaults, key, header_value) {
         if (c->trace && (!strcasecmp(key, "traceparent") || !strcasecmp(key, "tracestate")))
             continue;
-        if (!rc) rc = append_header(&headers, key, json_object_get_string(value));
+        if (!rc) rc = append_header(&headers, key, json_object_get_string(header_value));
     }
     struct VgiTraceContext trace;
     const struct VgiTraceContext *active = VgiTraceSpanContext(c->trace);
@@ -240,6 +243,7 @@ static int exchange_http(struct VgiClient *c, const char *verb, const char *path
     json_object_put(h->headers);
     h->headers = json_object_new_object();
     struct ResponseSink sink = {&wire, h->response_limit, 0};
+    char curl_error[CURL_ERROR_SIZE] = {0};
     if (!rc) {
         curl_easy_reset(h->curl);
         curl_easy_setopt(h->curl, CURLOPT_URL, url);
@@ -250,6 +254,7 @@ static int exchange_http(struct VgiClient *c, const char *verb, const char *path
                          (curl_off_t)(body ? body->size_bytes : 0));
         curl_easy_setopt(h->curl, CURLOPT_TIMEOUT, (long)c->options.timeout_seconds);
         curl_easy_setopt(h->curl, CURLOPT_NOSIGNAL, 1L);
+        curl_easy_setopt(h->curl, CURLOPT_ERRORBUFFER, curl_error);
         curl_easy_setopt(h->curl, CURLOPT_PROTOCOLS_STR, "http,https");
         curl_easy_setopt(h->curl, CURLOPT_SSL_VERIFYPEER, 1L);
         curl_easy_setopt(h->curl, CURLOPT_SSL_VERIFYHOST, 2L);
@@ -267,9 +272,11 @@ static int exchange_http(struct VgiClient *c, const char *verb, const char *path
         CURLcode result = curl_easy_perform(h->curl);
         if (result) {
             rc = sink.failed ? sink.failed : EIO;
-            if (result == CURLE_PEER_FAILED_VERIFICATION)
-                VgiClientSetError(c, "TLSVerificationError", "UNAUTHENTICATED",
-                                  curl_easy_strerror(result));
+            const char *message = *curl_error ? curl_error : curl_easy_strerror(result);
+            if (result == CURLE_PEER_FAILED_VERIFICATION || result == CURLE_SSL_CACERT_BADFILE)
+                VgiClientSetError(c, "TLSVerificationError", "UNAUTHENTICATED", message);
+            else
+                VgiClientSetError(c, "TransportError", "UNAVAILABLE", message);
         } else
             curl_easy_getinfo(h->curl, CURLINFO_RESPONSE_CODE, status);
     }
@@ -546,7 +553,7 @@ static int request_body(struct VgiClient *c, const char *method,
                               (const char *)metadata.data, out, &c->arrow_error);
     if (!rc && c->http->caps.upload_url_support && c->http->caps.max_request_bytes > 0 &&
         out->size_bytes > c->http->caps.max_request_bytes) {
-        const struct VgiExternalOptions *configured = VgiRpcServerExternal(c->resolver);
+        const struct VgiExternalOptions *configured = c->external_enabled ? &c->external : NULL;
         struct VgiExternalOptions external;
         if (configured)
             external = *configured;
@@ -567,7 +574,7 @@ static int request_body(struct VgiClient *c, const char *method,
                                     &c->arrow_error);
         /* Request routing is read before external payload resolution. Preserve
          * the request's dispatch and continuation metadata on the pointer too. */
-        struct ArrowMetadataReader reader;
+        struct ArrowMetadataReader reader = {0};
         if (!rc) rc = ArrowMetadataReaderInit(&reader, (const char *)metadata.data);
         while (!rc && reader.remaining_keys) {
             struct ArrowStringView key, value;

@@ -1,14 +1,18 @@
 #ifndef VGI_CLIENT_INTERNAL_H
 #define VGI_CLIENT_INTERNAL_H
-#include <sys/types.h>
+#include <stdint.h>
 
 #include "vgi_rpc/client.h"
 struct VgiClient {
     struct VgiClientOptions options;
     char *protocol, *version;
-    FILE *input, *output;
-    pid_t child;
-    struct VgiRpcServer *resolver;
+    int input_fd, output_fd;
+    intptr_t socket_handle;
+    intptr_t child;
+    void *process_handle;
+    int transport_is_socket;
+    struct VgiExternalOptions external;
+    int external_enabled;
     struct VgiClientError error;
     struct ArrowError arrow_error;
     int streaming, exchange, eos;

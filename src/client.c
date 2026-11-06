@@ -1,26 +1,16 @@
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
-#include <fcntl.h>
 #include <json-c/json.h>
-#include <netdb.h>
-#include <poll.h>
-#include <signal.h>
-#include <spawn.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/un.h>
-#include <sys/wait.h>
-#include <time.h>
-#include <unistd.h>
 
 #include "client_internal.h"
+#include "client_transport.h"
 #include "external_internal.h"
+#include "platform.h"
 #include "rpc_internal.h"
 #include "shm_internal.h"
 #include "telemetry_internal.h"
-extern char **environ;
 
 static char *text_copy(struct ArrowStringView value) {
     if (value.size_bytes < 0 ||
@@ -101,22 +91,7 @@ static void trace_end(struct VgiClient *c, int rc) {
     VgiTraceEnd(c->trace, rc);
     c->trace = NULL;
 }
-int VgiClientReusable(struct VgiClient *c) {
-    if (!c || c->broken || c->streaming || c->child <= 0 || !c->input) return 0;
-    int status;
-    pid_t result = waitpid(c->child, &status, WNOHANG);
-    if (result == c->child || (result < 0 && errno == ECHILD)) {
-        c->child = 0;
-        c->broken = 1;
-        return 0;
-    }
-    struct pollfd fd = {fileno(c->input), POLLIN, 0};
-    int rc;
-    do {
-        rc = poll(&fd, 1, 0);
-    } while (rc < 0 && errno == EINTR);
-    return rc == 0;
-}
+int VgiClientReusable(struct VgiClient *c) { return VgiClientTransportReusable(c); }
 const struct VgiClientError *VgiClientLastError(const struct VgiClient *c) { return &c->error; }
 int VgiClientReadMetadata(struct VgiClient *c, const char *metadata) {
     struct ArrowStringView level = VgiMetadataGet(metadata, VGI_RPC_LOG_LEVEL_KEY);
@@ -156,20 +131,20 @@ int VgiClientReadMetadata(struct VgiClient *c, const char *metadata) {
     free(extra_text);
     return rc ? rc : 1; /* a non-data log */
 }
-static void resolved_log(void *state, const char *metadata) {
-    (void)VgiClientReadMetadata(state, metadata);
+static int resolved_external_log(void *state, const char *level, const char *message,
+                                 const char *extra) {
+    struct VgiClient *c = state;
+    if (c->options.on_log)
+        c->options.on_log(c->options.log_state, level, message, extra ? extra : "{}");
+    return 0;
 }
 int VgiClientResolve(struct VgiClient *c, struct VgiAnnotatedBatch *batch) {
-    struct VgiRpcCall call;
-    VgiRpcCallInit(&call, c->resolver);
-    int rc = VgiShmResolve(c->shm, &batch->batch, &batch->metadata, &call.error);
-    if (!rc) rc = VgiExternalResolve(&call, &batch->batch, &batch->metadata);
-    VgiRpcDrainLogs(&call, resolved_log, c);
+    int rc = VgiShmResolve(c->shm, &batch->batch, &batch->metadata, &c->arrow_error);
+    if (!rc)
+        rc = VgiExternalResolveOptions(c->external_enabled ? &c->external : NULL, &batch->batch,
+                                       &batch->metadata, &c->arrow_error, resolved_external_log, c);
     if (rc)
-        VgiClientSetError(c, call.error_type ? call.error_type : "ExternalLocationError",
-                          call.error_code ? call.error_code : "INVALID_ARGUMENT",
-                          call.error.message);
-    VgiRpcCallReset(&call);
+        VgiClientSetError(c, "ExternalLocationError", "INVALID_ARGUMENT", c->arrow_error.message);
     return rc;
 }
 int VgiClientRequestMetadata(struct VgiClient *c, const char *method, const char *metadata,
@@ -186,98 +161,6 @@ int VgiClientRequestMetadata(struct VgiClient *c, const char *method, const char
     if (!rc) rc = VgiShmAdvertise(c->shm, out);
     if (!rc) rc = VgiTraceInject(c->trace, out);
     return rc;
-}
-static int spawn_child(struct VgiClient *c, const char *const *argv) {
-    if (!argv || !argv[0]) return EINVAL;
-    int input[2], output[2];
-    if (pipe(input)) return errno;
-    if (pipe(output)) {
-        int rc = errno;
-        close(input[0]);
-        close(input[1]);
-        return rc;
-    }
-    int fds[] = {input[0], input[1], output[0], output[1]};
-    for (int i = 0; i < 4; ++i) fcntl(fds[i], F_SETFD, FD_CLOEXEC);
-    posix_spawn_file_actions_t actions;
-    int rc = posix_spawn_file_actions_init(&actions);
-    if (!rc) {
-        rc = posix_spawn_file_actions_adddup2(&actions, input[0], STDIN_FILENO);
-        if (!rc) rc = posix_spawn_file_actions_adddup2(&actions, output[1], STDOUT_FILENO);
-        for (int i = 0; !rc && i < 4; ++i) rc = posix_spawn_file_actions_addclose(&actions, fds[i]);
-        if (!rc)
-            rc = posix_spawnp(&c->child, argv[0], &actions, NULL, (char *const *)argv, environ);
-        posix_spawn_file_actions_destroy(&actions);
-    }
-    close(input[0]);
-    close(output[1]);
-    if (!rc) {
-        c->input = fdopen(output[0], "rb");
-        c->output = fdopen(input[1], "wb");
-        if (!c->input || !c->output) rc = errno;
-    }
-    if (!c->input) close(output[0]);
-    if (!c->output) close(input[1]);
-    return rc;
-}
-static int connect_socket(struct VgiClient *c) {
-    int fd = -1, rc = 0;
-    const char *target = c->options.target;
-    if (!target) return EINVAL;
-    if (c->options.transport == VGI_CLIENT_UNIX) {
-        struct sockaddr_un address = {0};
-        address.sun_family = AF_UNIX;
-        if (strlen(target) >= sizeof(address.sun_path)) return ENAMETOOLONG;
-        strcpy(address.sun_path, target);
-        fd = socket(AF_UNIX, SOCK_STREAM, 0);
-        if (fd >= 0 && connect(fd, (struct sockaddr *)&address, sizeof(address))) {
-            rc = errno;
-            close(fd);
-            fd = -1;
-        }
-    } else {
-        char *host = strdup(target);
-        if (!host) return ENOMEM;
-        char *port = strrchr(host, ':');
-        if (!port) {
-            free(host);
-            return EINVAL;
-        }
-        *port++ = 0;
-        struct addrinfo hints = {0}, *addresses = NULL;
-        hints.ai_socktype = SOCK_STREAM;
-        rc = getaddrinfo(*host ? host : "127.0.0.1", port, &hints, &addresses) ? EINVAL : 0;
-        for (struct addrinfo *a = addresses; !rc && a; a = a->ai_next) {
-            fd = socket(a->ai_family, a->ai_socktype, a->ai_protocol);
-            if (fd < 0) continue;
-            if (!connect(fd, a->ai_addr, a->ai_addrlen)) break;
-            close(fd);
-            fd = -1;
-        }
-        freeaddrinfo(addresses);
-        free(host);
-    }
-    if (fd < 0) return rc ? rc : ECONNREFUSED;
-    struct timeval timeout = {(time_t)c->options.timeout_seconds, 0};
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-#ifdef SO_NOSIGPIPE
-    int one = 1;
-    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
-#endif
-    fcntl(fd, F_SETFD, FD_CLOEXEC);
-    int other = dup(fd);
-    if (other < 0) {
-        rc = errno;
-        close(fd);
-        return rc;
-    }
-    fcntl(other, F_SETFD, FD_CLOEXEC);
-    c->input = fdopen(fd, "rb");
-    c->output = fdopen(other, "wb");
-    if (!c->input) close(fd);
-    if (!c->output) close(other);
-    return c->input && c->output ? 0 : ENOMEM;
 }
 static int negotiate_shm(struct VgiClient *c, struct ArrowError *error) {
     struct VgiAnnotatedBatch in = {0}, out = {0};
@@ -316,20 +199,15 @@ int VgiClientConnect(const struct VgiClientOptions *options, struct VgiClient **
     c->options = *options;
     c->protocol = strdup(options->protocol);
     c->version = strdup(options->protocol_version ? options->protocol_version : "");
-    c->resolver = VgiRpcServerNew();
-    int rc = c->protocol && c->version && c->resolver ? 0 : ENOMEM;
-    if (!rc) rc = VgiRpcServerSetExternal(c->resolver, options->external);
+    c->input_fd = c->output_fd = -1;
+    c->socket_handle = -1;
+    c->external_enabled = options->external != NULL;
+    if (options->external) c->external = *options->external;
+    int rc = c->protocol && c->version ? 0 : ENOMEM;
     if (!rc)
-        rc = options->transport == VGI_CLIENT_STDIO  ? spawn_child(c, options->argv)
-             : options->transport == VGI_CLIENT_HTTP ? VgiHttpClientInit(c)
-                                                     : connect_socket(c);
+        rc = options->transport == VGI_CLIENT_HTTP ? VgiHttpClientInit(c)
+                                                   : VgiClientTransportOpen(c);
     if (!rc) {
-        if (c->input && c->output) {
-            int fd = fileno(c->input);
-            fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-            fd = fileno(c->output);
-            fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
-        }
         if (options->shared_memory_size) rc = negotiate_shm(c, error);
     }
     if (rc) {
@@ -347,28 +225,7 @@ void VgiClientFree(struct VgiClient *c) {
     VgiIpcWriterReset(&c->writer);
     VgiIpcReaderReset(&c->reader);
     if (c->output_schema.release) ArrowSchemaRelease(&c->output_schema);
-    if (c->input) fclose(c->input);
-    if (c->output) fclose(c->output);
-    if (c->child > 0) {
-        int status, waited = 0;
-        /* EOF lets cooperative workers release state and flush telemetry. */
-        for (int i = 0; i < 40; ++i) {
-            if (i == 20) kill(c->child, SIGTERM);
-            pid_t result = waitpid(c->child, &status, WNOHANG);
-            if (result == c->child || (result < 0 && errno == ECHILD)) {
-                waited = 1;
-                break;
-            }
-            struct timespec delay = {0, 10000000};
-            nanosleep(&delay, NULL);
-        }
-        if (!waited) {
-            kill(c->child, SIGKILL);
-            while (waitpid(c->child, &status, 0) < 0 && errno == EINTR) {
-            }
-        }
-    }
-    VgiRpcServerFree(c->resolver);
+    VgiClientTransportClose(c);
     VgiShmFree(c->shm);
     VgiClientClearError(c);
     free(c->protocol);
@@ -387,7 +244,6 @@ static int request(struct VgiClient *c, const char *method, const struct VgiAnno
         rc = VgiShmWrite(c->shm, &writer, &input->batch.array, (const char *)metadata.data,
                          &c->arrow_error);
     if (!rc) rc = VgiIpcWriterFinish(&writer, &c->arrow_error);
-    if (!rc && fflush(c->output)) rc = EIO;
     VgiIpcWriterReset(&writer);
     if (target.release) target.release(&target);
     ArrowBufferReset(&metadata);
@@ -506,7 +362,6 @@ int VgiClientStreamOpen(struct VgiClient *c, const char *method,
             struct ArrowSchema empty = {0};
             if (!VgiSchemaRpcEmpty(&empty, &c->arrow_error) && !writer_init(c, &empty)) {
                 VgiIpcWriterFinish(&c->writer, &c->arrow_error);
-                fflush(c->output);
             }
             if (empty.release) ArrowSchemaRelease(&empty);
             VgiIpcWriterReset(&c->writer);
@@ -527,7 +382,6 @@ static int step(struct VgiClient *c, const struct VgiAnnotatedBatch *input,
     if (!rc)
         rc = VgiShmWrite(c->shm, &c->writer, &input->batch.array,
                          (const char *)input->metadata.data, &c->arrow_error);
-    if (!rc && fflush(c->output)) rc = EIO;
     if (!rc && !c->reader.private_data) rc = reader_init(c, &c->reader, &c->output_schema);
     if (!rc) rc = read_next(c, &c->reader, &c->output_schema, out, done);
     if (rc || *done) {
@@ -595,7 +449,6 @@ int VgiClientStreamClose(struct VgiClient *c, int cancel) {
         VgiAnnotatedBatchReset(&value);
     }
     if (!rc) rc = VgiIpcWriterFinish(&c->writer, &c->arrow_error);
-    if (!rc && fflush(c->output)) rc = EIO;
     if (!rc && !c->eos && !c->reader.private_data)
         rc = reader_init(c, &c->reader, &c->output_schema);
     int pending = 0;

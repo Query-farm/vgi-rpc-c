@@ -28,12 +28,12 @@ it is not needed to build or run an application.
 **Features**
 
 - Unary calls, producer streams, and bidirectional exchanges, including stream headers, cancellation, in-band logs, and structured errors.
-- Standard input/output, owned subprocesses, Unix sockets, raw TCP, and HTTP. HTTPS clients verify certificates and hostnames through libcurl.
+- Standard input/output, owned subprocesses, local IPC (Unix sockets or Windows named pipes), raw TCP, and HTTP. HTTPS clients verify certificates and hostnames through libcurl.
 - Co-hosted protocols and `vgi_rpc.Reflection.v1` service discovery.
 - Stateless HTTP continuations with separate authenticated call and cursor tokens, identity binding, compression, and bounded decoding.
 - HTTP bearer and callback authentication, Identity/grant operations, proxy proofs, sticky sessions, CORS, compression, response budgets, and access logs.
 - External payload publication and resolution with method-specific upload/download URLs, digest verification, redirect validation, and fetch/decompression limits.
-- POSIX shared-memory batch transfer on subprocess and Unix-socket connections, interoperable with Python's allocator and dictionary IPC format.
+- Native shared-memory batch transfer using POSIX shared memory or Windows file mappings, interoperable with Python's allocator and dictionary IPC format.
 - Bounded subprocess pools with exclusive leases, timed acquisition, idle eviction, and replacement of failed workers.
 - OpenTelemetry client/server spans, W3C trace propagation, correlated logs, and asynchronous OTLP/HTTP JSON traces and metrics.
 
@@ -43,9 +43,10 @@ scope and [hosting](docs/hosting.md) for HTTP deployment options.
 
 ## Installation
 
-Requires CMake 3.20+, a C11 compiler, pkg-config, json-c, libsodium, libevent,
-libcurl, zstd, LZ4, zlib, and platform threads. POSIX platforms are supported;
-see [building](docs/building.md) for the tested platforms. The API may change
+Requires CMake 3.20+, a C11 compiler, pkg-config, json-c, libsodium, libcurl,
+zstd, LZ4, and zlib. The full server also requires libevent and pthreads. The
+client-only runtime supports Windows/MSVC without those server dependencies;
+see [building](docs/building.md) for the tested variants. The API may change
 between 0.x minor releases.
 
 ```sh

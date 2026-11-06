@@ -47,7 +47,9 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-dir", type=Path, default=Path("build"))
     args = parser.parse_args()
-    executable = str((args.build_dir / "vgi-rpc-client-integration").resolve())
+    executable_name = "vgi-rpc-client-integration.exe" if os.name == "nt" else "vgi-rpc-client-integration"
+    executable_dir = args.build_dir / "Release" if os.name == "nt" else args.build_dir
+    executable = str((executable_dir / executable_name).resolve())
 
     def run(*argv: str, shm: bool = False) -> None:
         subprocess.run(
@@ -58,10 +60,11 @@ def main() -> None:
 
     run("stdio", sys.executable)
     run("stdio", sys.executable, shm=True)
-    with tempfile.TemporaryDirectory(prefix="vgi-c-client-", dir="/tmp") as directory:
-        with worker("--unix", str(Path(directory) / "worker.sock")) as (path, _):
-            run("unix", path)
-            run("unix", path, shm=True)
+    if os.name != "nt":
+        with tempfile.TemporaryDirectory(prefix="vgi-c-client-", dir="/tmp") as directory:
+            with worker("--unix", str(Path(directory) / "worker.sock")) as (path, _):
+                run("unix", path)
+                run("unix", path, shm=True)
     with worker("--tcp", "127.0.0.1:0") as (address, _):
         run("tcp", address)
     for extra in ((), ("--producer-turn-bytes", "65536"), ("--external",)):
@@ -70,7 +73,12 @@ def main() -> None:
     with worker("--http", "0", "--prefix", "/vgi", "--tls", tls=True) as (port, ca):
         assert ca
         run("untrusted", f"https://127.0.0.1:{port}/vgi")
-        run("http", f"https://127.0.0.1:{port}/vgi", ca)
+        # Schannel correctly rejects this aiohttp fixture's abrupt TLS shutdown
+        # (it omits close_notify) as a possible truncation. The untrusted leg
+        # still proves certificate verification on Windows; trusted TLS is
+        # exercised with this fixture by the OpenSSL-backed POSIX jobs.
+        if os.name != "nt":
+            run("http", f"https://127.0.0.1:{port}/vgi", ca)
     # A trusted certificate for another hostname must fail before any RPC.
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -119,7 +127,8 @@ def main() -> None:
             run("untrusted", f"https://127.0.0.1:{listener.getsockname()[1]}/vgi", str(cert_path))
             thread.join(timeout=10)
             assert not thread.is_alive()
-    print("Native client: stdio, Unix, TCP, HTTP, buffered init, external storage, and TLS passed")
+    local = "stdio, Unix, TCP" if os.name != "nt" else "stdio, TCP"
+    print(f"Native client: {local}, HTTP, buffered init, external storage, and TLS passed")
 
 
 if __name__ == "__main__":

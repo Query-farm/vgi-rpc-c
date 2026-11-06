@@ -367,7 +367,7 @@ static int reflection(void *state, struct VgiRpcCall *call, struct VgiRpcReply *
     if (!strcmp(call->method->name, "list_protocols")) {
         rc = VgiRpcBatchInitNamed(&payload, "RpcProtocolList", &call->error);
         if (!rc) rc = VgiBatchSetString(&payload, "server_id", server->id);
-        if (!rc) rc = VgiBatchSetString(&payload, "server_version", "vgi-rpc-c/0.1.0");
+        if (!rc) rc = VgiBatchSetString(&payload, "server_version", "vgi-rpc-c/0.1.1");
         if (!rc) rc = VgiBatchSetString(&payload, "request_version", "1");
         struct ArrowArray *list = rc ? NULL : VgiBatchColumn(&payload, "protocols");
         for (size_t i = 0; !rc && i < server->count; ++i)

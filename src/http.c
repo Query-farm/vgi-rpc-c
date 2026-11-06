@@ -1567,7 +1567,7 @@ static void receive(struct evhttp_request *request, void *opaque) {
                                json_object_new_string("vgi-rpc-c/0.1.0"));
         json_object_object_add(task->log, "principal", json_object_new_string(""));
         json_object_object_add(task->log, "auth_domain", json_object_new_string(""));
-        char *address = NULL;
+        const char *address = NULL;
         ev_uint16_t peer_port = 0;
         evhttp_connection_get_peer(evhttp_request_get_connection(request), &address, &peer_port);
         json_object_object_add(task->log, "remote_addr",

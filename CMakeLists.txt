@@ -44,7 +44,7 @@ pkg_check_modules(LIBEVENT REQUIRED IMPORTED_TARGET libevent libevent_pthreads)
 pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
 pkg_check_modules(CURL REQUIRED IMPORTED_TARGET libcurl)
 find_package(ZLIB REQUIRED)
-add_library(vgi_rpc src/schema.c src/ipc.c src/stream.c src/batch.c src/rpc.c
+add_library(vgi_rpc src/schema.c src/ipc.c src/stream.c src/batch.c src/rpc.c src/crypto.c
     src/socket.c src/credentials.c src/identity.c src/http.c src/http_codec.c src/proof.c src/session.c
     src/generated/protocol.c src/external.c src/token.c src/client.c src/client_io.c src/client_http.c src/shm.c src/pool.c src/telemetry.c)
 add_library(vgi_rpc::vgi_rpc ALIAS vgi_rpc)

@@ -27,7 +27,39 @@ void VgiExternalOptionsInit(struct VgiExternalOptions *o) {
 void VgiExternalUploadUrlReset(struct VgiExternalUploadUrl *url) {
     free(url->upload_url);
     free(url->download_url);
+    for (size_t i = 0; i < url->header_count; ++i) {
+        free(url->headers[i].name);
+        free(url->headers[i].value);
+    }
+    free(url->headers);
     memset(url, 0, sizeof(*url));
+}
+int VgiExternalUploadUrlAddHeader(struct VgiExternalUploadUrl *url, const char *name,
+                                  const char *value) {
+    if (!url || !name || !*name || !value || strpbrk(name, ":\r\n") || strpbrk(value, "\r\n"))
+        return EINVAL;
+    struct VgiExternalHeader *grown =
+        realloc(url->headers, (url->header_count + 1) * sizeof(*url->headers));
+    if (!grown) return ENOMEM;
+    url->headers = grown;
+    struct VgiExternalHeader *h = &url->headers[url->header_count];
+    h->name = strdup(name);
+    h->value = strdup(value);
+    if (!h->name || !h->value) {
+        free(h->name);
+        free(h->value);
+        return ENOMEM;
+    }
+    ++url->header_count;
+    return 0;
+}
+int VgiExternalSha256Hex(const void *data, size_t size, char out[65]) {
+    if ((!data && size) || !out) return EINVAL;
+    unsigned char digest[32];
+    if (crypto_hash_sha256(digest, (const unsigned char *)data, (unsigned long long)size))
+        return EIO;
+    sodium_bin2hex(out, 65, digest, sizeof(digest));
+    return 0;
 }
 void VgiExternalRefReset(struct VgiExternalRef *ref) {
     free(ref->location);
@@ -91,9 +123,29 @@ static size_t receive_header(char *data, size_t size, size_t count, void *state)
     }
     return n;
 }
+/* S3-style error bodies name the refusal in <Code>; surface it (never the URL). */
+static void storage_error_code(const struct ArrowBuffer *body, char *out, size_t size) {
+    *out = 0;
+    const char *open = "<Code>", *close = "</Code>";
+    if (!body->size_bytes || size < 2) return;
+    const char *start = NULL, *end = NULL, *data = (const char *)body->data;
+    size_t n = (size_t)body->size_bytes;
+    for (size_t i = 0; i + 6 <= n && !start; ++i)
+        if (!memcmp(data + i, open, 6)) start = data + i + 6;
+    if (!start) return;
+    for (const char *p = start; p + 7 <= data + n && !end; ++p)
+        if (!memcmp(p, close, 7)) end = p;
+    if (!end || end == start || (size_t)(end - start) >= size) return;
+    for (const char *p = start; p < end; ++p)
+        if (!((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9')))
+            return;
+    memcpy(out, start, (size_t)(end - start));
+    out[end - start] = 0;
+}
 int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, const char *url,
-                    struct ArrowBufferView body, const char *encoding, struct ArrowBuffer *out,
-                    struct ArrowError *error) {
+                    struct ArrowBufferView body, const char *encoding,
+                    const struct VgiExternalHeader *extra, size_t extra_count,
+                    struct ArrowBuffer *out, struct ArrowError *error) {
     if (!o || !method || !url || !out || out->size_bytes || o->max_fetch_bytes < 1 ||
         o->max_decompressed_bytes < 1 || !o->timeout_seconds || body.size_bytes < 0)
         return EINVAL;
@@ -136,14 +188,29 @@ int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, cons
             curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
             curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.size_bytes ? body.data.data : "");
             curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)body.size_bytes);
-            headers = curl_slist_append(headers,
-                                        !strcmp(method, "POST")
-                                            ? "Content-Type: application/json"
-                                            : "Content-Type: application/vnd.apache.arrow.stream");
-            if (encoding && *encoding) {
+            int typed = 0;
+            for (size_t i = 0; i < extra_count; ++i)
+                if (!strcasecmp(extra[i].name, "Content-Type")) typed = 1;
+            if (!typed)
+                headers = curl_slist_append(
+                    headers, !strcmp(method, "POST")
+                                 ? "Content-Type: application/json"
+                                 : "Content-Type: application/vnd.apache.arrow.stream");
+            if (encoding && *encoding && strcmp(encoding, "identity")) {
                 char field[96];
                 snprintf(field, sizeof(field), "Content-Encoding: %s", encoding);
                 headers = curl_slist_append(headers, field);
+            }
+            /* Signed URLs cover the length; never let curl switch to chunked
+             * transfer or stall on 100-continue. */
+            headers = curl_slist_append(headers, "Expect:");
+            for (size_t i = 0; i < extra_count; ++i) {
+                size_t length = strlen(extra[i].name) + strlen(extra[i].value) + 3;
+                char *field = malloc(length);
+                if (!field) continue;
+                snprintf(field, length, "%s: %s", extra[i].name, extra[i].value);
+                headers = curl_slist_append(headers, field);
+                free(field);
             }
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         }
@@ -167,7 +234,16 @@ int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, cons
                 rc = ENOMEM;
         } else if (status < 200 || status >= 300) {
             rc = EIO;
-            ArrowErrorSet(error, "External HTTP request returned status %ld", status);
+            char code[64];
+            storage_error_code(&download.body, code, sizeof(code));
+            if (!strcmp(method, "PUT"))
+                ArrowErrorSet(error, "PUT to upload URL failed: HTTP %ld%s%s", status,
+                              *code ? " " : "", code);
+            else if (*code)
+                ArrowErrorSet(error, "External HTTP request returned status %ld (%s)", status,
+                              code);
+            else
+                ArrowErrorSet(error, "External HTTP request returned status %ld", status);
         } else {
             rc = VgiHttpDecode(
                 download.encoding,
@@ -191,7 +267,8 @@ int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, cons
 }
 int VgiExternalFetch(const struct VgiExternalOptions *o, const char *url, const char *sha256,
                      struct ArrowBuffer *out, struct ArrowError *error) {
-    int rc = VgiExternalHttp(o, "GET", url, (struct ArrowBufferView){{NULL}, 0}, NULL, out, error);
+    int rc = VgiExternalHttp(o, "GET", url, (struct ArrowBufferView){{NULL}, 0}, NULL, NULL, 0, out,
+                             error);
     if (!rc && sha256 && *sha256) {
         unsigned char expected[32], actual[32];
         size_t n = 0;
@@ -203,7 +280,7 @@ int VgiExternalFetch(const struct VgiExternalOptions *o, const char *url, const 
             if (sodium_memcmp(expected, actual, 32)) rc = EINVAL;
         }
         if (rc) {
-            ArrowErrorSet(error, "External payload checksum mismatch");
+            ArrowErrorSet(error, "ExternalLocation sha256 mismatch (SHA-256 checksum mismatch)");
             ArrowBufferReset(out);
         }
     }
@@ -213,17 +290,27 @@ int VgiExternalPublish(const struct VgiExternalOptions *o, const struct ArrowSch
                        struct ArrowBufferView ipc, int include_sha256, struct VgiExternalRef *out,
                        struct ArrowError *error) {
     if (!o || !o->allocate || !out || out->location || ipc.size_bytes < 0) return EINVAL;
+    (void)schema;
     struct VgiExternalUploadUrl urls = {0};
     struct ArrowBuffer encoded, response;
     ArrowBufferInit(&encoded);
     ArrowBufferInit(&response);
+    char body_sha256[65];
     int rc = VgiHttpEncode(o->compression ? o->compression : "identity", ipc, &encoded);
-    if (!rc) rc = o->allocate(o->storage_state, schema, &urls, error);
+    if (!rc && encoded.size_bytes < 1) rc = EINVAL;
+    if (!rc) rc = VgiExternalSha256Hex(encoded.data, (size_t)encoded.size_bytes, body_sha256);
+    if (!rc) rc = o->allocate(o->storage_state, encoded.size_bytes, body_sha256, &urls, error);
     if (!rc && (!urls.upload_url || !urls.download_url)) rc = EINVAL;
+    for (size_t i = 0; !rc && i < urls.header_count; ++i)
+        if (!strcasecmp(urls.headers[i].name, "Content-Length") ||
+            !strcasecmp(urls.headers[i].name, "Transfer-Encoding")) {
+            ArrowErrorSet(error, "Upload URL headers must not set %s", urls.headers[i].name);
+            rc = EINVAL;
+        }
     if (!rc)
         rc = VgiExternalHttp(o, "PUT", urls.upload_url,
                              (struct ArrowBufferView){{encoded.data}, encoded.size_bytes},
-                             o->compression, &response, error);
+                             o->compression, urls.headers, urls.header_count, &response, error);
     if (!rc) {
         out->location = urls.download_url;
         urls.download_url = NULL;
@@ -288,9 +375,10 @@ static int schema_equal(const struct ArrowSchema *a, const struct ArrowSchema *b
         if (!schema_equal(a->children[i], b->children[i])) return 0;
     return !a->dictionary || schema_equal(a->dictionary, b->dictionary);
 }
-int VgiExternalResolveOptions(const struct VgiExternalOptions *options, struct VgiBatch *batch,
-                              struct ArrowBuffer *metadata, struct ArrowError *error,
-                              VgiExternalLogFn receive_log, void *log_state) {
+int VgiExternalResolveOptions(const struct VgiExternalOptions *options, int require_sha256,
+                              struct VgiBatch *batch, struct ArrowBuffer *metadata,
+                              struct ArrowError *error, VgiExternalLogFn receive_log,
+                              void *log_state) {
     struct ArrowStringView location =
         VgiMetadataGet((const char *)metadata->data, VGI_RPC_LOCATION_KEY);
     if (!location.data) return 0;
@@ -302,9 +390,29 @@ int VgiExternalResolveOptions(const struct VgiExternalOptions *options, struct V
         ArrowErrorSet(error, "External pointer must have zero rows");
         return EINVAL;
     }
+    struct ArrowStringView digest_view =
+        VgiMetadataGet((const char *)metadata->data, VGI_RPC_LOCATION_SHA256_KEY);
+    if (require_sha256 && (!digest_view.data || !digest_view.size_bytes)) {
+        ArrowErrorSet(error,
+                      "Request pointer is missing vgi_rpc.location.sha256 (required on "
+                      "request pointers since vgi-rpc upload-URL protocol v2)");
+        return EINVAL;
+    }
+    if (require_sha256) {
+        int hex = digest_view.size_bytes == 64;
+        for (int64_t i = 0; hex && i < 64; ++i) {
+            char ch = digest_view.data[i];
+            hex = (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f');
+        }
+        if (!hex) {
+            ArrowErrorSet(error,
+                          "Request pointer vgi_rpc.location.sha256 is not 64 lowercase "
+                          "hex characters");
+            return EINVAL;
+        }
+    }
     char *url = metadata_text(location);
-    char *digest =
-        metadata_text(VgiMetadataGet((const char *)metadata->data, VGI_RPC_LOCATION_SHA256_KEY));
+    char *digest = metadata_text(digest_view);
     int rc = url && digest ? 0 : EINVAL;
     double start = VgiMonotonicSeconds();
     struct ArrowBuffer payload, inner_metadata, value_metadata;
@@ -397,7 +505,8 @@ static int server_log(void *state, const char *level, const char *message, const
 
 int VgiExternalResolve(struct VgiRpcCall *call, struct VgiBatch *batch,
                        struct ArrowBuffer *metadata) {
-    int rc = VgiExternalResolveOptions(VgiRpcServerExternal(call->server), batch, metadata,
+    /* Request pointers must carry the payload digest (upload protocol v2). */
+    int rc = VgiExternalResolveOptions(VgiRpcServerExternal(call->server), 1, batch, metadata,
                                        &call->error, server_log, call);
     if (rc) {
         call->error_type = "ExternalLocationError";

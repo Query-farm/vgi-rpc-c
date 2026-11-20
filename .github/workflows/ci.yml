@@ -19,6 +19,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Query-farm/vgi-rpc-python
+          # TODO(release-wave): back to the default branch once upload-URL v2
+          # (protocol 3.4) is released in vgi-rpc-python.
+          ref: protocol-3.4
           path: reference
       - name: Python reference and test dependencies
         run: python -m pip install -e './reference[http,conformance,mtls,external,otel]' pytest pytest-timeout ruff opentelemetry-proto
@@ -66,6 +69,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Query-farm/vgi-rpc-python
+          # TODO(release-wave): back to the default branch once upload-URL v2
+          # (protocol 3.4) is released in vgi-rpc-python.
+          ref: protocol-3.4
           path: reference
       - name: Python reference worker
         run: python -m pip install -e './reference[http,conformance,mtls,external]'

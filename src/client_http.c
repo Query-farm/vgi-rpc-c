@@ -72,7 +72,9 @@ static int64_t number(const char *s) {
 }
 static void caps_read(struct VgiHttpClient *h) {
     h->caps.sticky_enabled = yes(header(h, "vgi-sticky-enabled"));
-    h->caps.upload_url_support = yes(header(h, "vgi-upload-url-support"));
+    /* "2" is upload protocol v2 (sized, hashed uploads); "true" is the retired v1. */
+    const char *upload = header(h, "vgi-upload-url-support");
+    h->caps.upload_url_support = yes(upload) ? 1 : (int)(number(upload) > 0 ? number(upload) : 0);
     h->caps.externalization_enabled = yes(header(h, "vgi-externalization-enabled"));
     h->caps.sticky_default_ttl = number(header(h, "vgi-sticky-default-ttl"));
     h->caps.max_request_bytes = number(header(h, "vgi-max-request-bytes"));
@@ -517,14 +519,30 @@ static int parse_response(struct VgiClient *c, const struct ArrowBuffer *body, i
     }
     return rc;
 }
-static int allocate_upload(void *state, const struct ArrowSchema *schema,
+/* Refuse any server that does not speak upload protocol v2 exactly. */
+static int upload_version_mismatch(struct VgiClient *c) {
+    char message[192];
+    int version = c->http->caps.upload_url_support;
+    if (version < VGI_UPLOAD_URL_PROTOCOL)
+        snprintf(message, sizeof(message),
+                 "Server upload protocol is too old: it advertises VGI-Upload-URL-Support v%d "
+                 "and this client needs %d",
+                 version, VGI_UPLOAD_URL_PROTOCOL);
+    else
+        snprintf(message, sizeof(message),
+                 "Server upload protocol is newer than this client: it advertises "
+                 "VGI-Upload-URL-Support: %d and this client speaks %d",
+                 version, VGI_UPLOAD_URL_PROTOCOL);
+    return VgiClientSetError(c, "ProtocolError", "FAILED_PRECONDITION", message);
+}
+static int allocate_upload(void *state, int64_t size, const char *sha256,
                            struct VgiExternalUploadUrl *url, struct ArrowError *error) {
-    (void)schema;
     (void)error;
     struct VgiClient *c = state;
     struct VgiExternalUploadUrl *urls = NULL;
     size_t count = 0;
-    int rc = VgiClientUploadUrls(c, 1, &urls, &count);
+    struct VgiUploadRequest upload = {size, sha256};
+    int rc = VgiClientUploadUrls(c, &upload, 1, &urls, &count);
     if (!rc && count != 1) rc = EINVAL;
     if (!rc) {
         *url = urls[0];
@@ -551,8 +569,14 @@ static int request_body(struct VgiClient *c, const char *method,
     if (!rc)
         rc = VgiIpcWriteBatch(&input->batch.schema, &input->batch.array,
                               (const char *)metadata.data, out, &c->arrow_error);
-    if (!rc && c->http->caps.upload_url_support && c->http->caps.max_request_bytes > 0 &&
-        out->size_bytes > c->http->caps.max_request_bytes) {
+    int oversized = !rc && c->http->caps.upload_url_support &&
+                    c->http->caps.max_request_bytes > 0 &&
+                    out->size_bytes > c->http->caps.max_request_bytes;
+    if (oversized && c->http->caps.upload_url_support != VGI_UPLOAD_URL_PROTOCOL) {
+        rc = upload_version_mismatch(c);
+        oversized = 0;
+    }
+    if (oversized) {
         const struct VgiExternalOptions *configured = c->external_enabled ? &c->external : NULL;
         struct VgiExternalOptions external;
         if (configured)
@@ -563,10 +587,16 @@ static int request_body(struct VgiClient *c, const char *method,
         }
         external.allocate = allocate_upload;
         external.storage_state = c;
-        external.compression = c->options.compression_level ? "zstd" : "identity";
+        /* The PUT body is the request IPC verbatim, so the (size, sha256) the
+         * URL is signed for and the pointer's vgi_rpc.location.sha256 agree. */
+        external.compression = "identity";
         struct VgiExternalRef ref = {0};
         rc = VgiExternalPublish(&external, &input->batch.schema, bytes(out), 1, &ref,
                                 &c->arrow_error);
+        if (rc && !c->error.type)
+            VgiClientSetError(
+                c, "ExternalUploadFailed", "UNAVAILABLE",
+                c->arrow_error.message[0] ? c->arrow_error.message : "Request upload failed");
         struct VgiAnnotatedBatch pointer = {0};
         ArrowBufferInit(&pointer.metadata);
         if (!rc)
@@ -753,10 +783,24 @@ void VgiClientUploadUrlsFree(struct VgiExternalUploadUrl *urls, size_t count) {
     for (size_t i = 0; i < count; ++i) VgiExternalUploadUrlReset(&urls[i]);
     free(urls);
 }
-int VgiClientUploadUrls(struct VgiClient *c, int count, struct VgiExternalUploadUrl **out,
-                        size_t *out_count) {
-    if (!c->http || !out || *out || !out_count) return EINVAL;
+static int lower_hex64(const char *text) {
+    if (!text || strlen(text) != 64) return 0;
+    for (size_t i = 0; i < 64; ++i)
+        if (!((text[i] >= '0' && text[i] <= '9') || (text[i] >= 'a' && text[i] <= 'f'))) return 0;
+    return 1;
+}
+int VgiClientUploadUrls(struct VgiClient *c, const struct VgiUploadRequest *uploads, size_t count,
+                        struct VgiExternalUploadUrl **out, size_t *out_count) {
+    if (!c->http || !out || *out || !out_count || (count && !uploads)) return EINVAL;
     *out_count = 0;
+    if (c->http->caps.upload_url_support &&
+        c->http->caps.upload_url_support != VGI_UPLOAD_URL_PROTOCOL)
+        return upload_version_mismatch(c);
+    for (size_t i = 0; i < count; ++i)
+        if (uploads[i].size < 1 || !lower_hex64(uploads[i].sha256))
+            return VgiClientSetError(c, "ValueError", "INVALID_ARGUMENT",
+                                     "Each upload needs size >= 1 and a 64-character lowercase "
+                                     "hex sha256");
     struct ArrowSchema schema = {0};
     ArrowSchemaInit(&schema);
     struct VgiAnnotatedBatch request = {0}, result = {0};
@@ -764,12 +808,34 @@ int VgiClientUploadUrls(struct VgiClient *c, int count, struct VgiExternalUpload
     struct ArrowBuffer body, response;
     ArrowBufferInit(&body);
     ArrowBufferInit(&response);
+    /* uploads: list<struct<size: int64 not null, sha256: utf8 not null>> not null */
     int rc = ArrowSchemaSetTypeStruct(&schema, 1);
-    if (!rc) rc = ArrowSchemaSetType(schema.children[0], NANOARROW_TYPE_INT64);
-    if (!rc) rc = ArrowSchemaSetName(schema.children[0], "count");
+    struct ArrowSchema *list = !rc ? schema.children[0] : NULL;
+    if (!rc) rc = ArrowSchemaSetType(list, NANOARROW_TYPE_LIST);
+    if (!rc) rc = ArrowSchemaSetName(list, "uploads");
+    if (!rc) list->flags &= ~ARROW_FLAG_NULLABLE;
+    struct ArrowSchema *entry = !rc ? list->children[0] : NULL;
+    if (!rc) rc = ArrowSchemaSetTypeStruct(entry, 2);
+    if (!rc) rc = ArrowSchemaSetType(entry->children[0], NANOARROW_TYPE_INT64);
+    if (!rc) rc = ArrowSchemaSetName(entry->children[0], "size");
+    if (!rc) rc = ArrowSchemaSetType(entry->children[1], NANOARROW_TYPE_STRING);
+    if (!rc) rc = ArrowSchemaSetName(entry->children[1], "sha256");
+    if (!rc) {
+        entry->children[0]->flags &= ~ARROW_FLAG_NULLABLE;
+        entry->children[1]->flags &= ~ARROW_FLAG_NULLABLE;
+    }
     if (!rc) rc = VgiBatchInit(&request.batch, &schema, &c->arrow_error);
-    if (!rc) rc = VgiBatchSetInt(&request.batch, "count", count);
-    if (!rc) rc = VgiBatchFinishRow(&request.batch, &c->arrow_error);
+    struct ArrowArray *items = !rc ? request.batch.array.children[0] : NULL;
+    for (size_t i = 0; !rc && i < count; ++i) {
+        rc = ArrowArrayAppendInt(items->children[0]->children[0], uploads[i].size);
+        if (!rc)
+            rc = ArrowArrayAppendString(items->children[0]->children[1],
+                                        ArrowCharView(uploads[i].sha256));
+        if (!rc) rc = ArrowArrayFinishElement(items->children[0]);
+    }
+    if (!rc) rc = ArrowArrayFinishElement(items);
+    if (!rc) rc = ArrowArrayFinishElement(&request.batch.array);
+    if (!rc) rc = VgiBatchFinish(&request.batch, &c->arrow_error);
     if (!rc) rc = VgiMetadataSet(&request.metadata, VGI_RPC_RPC_METHOD_KEY, "__upload_url__");
     if (!rc) rc = VgiMetadataSet(&request.metadata, VGI_RPC_REQUEST_VERSION_KEY, "1");
     if (!rc)
@@ -787,23 +853,38 @@ int VgiClientUploadUrls(struct VgiClient *c, int count, struct VgiExternalUpload
     c->http->head = head;
     c->http->tail = tail;
     if (!rc) rc = VgiBatchView(&result.batch, &c->arrow_error);
-    const struct ArrowArrayView *uploads = !rc ? VgiBatchGet(&result.batch, "upload_url") : NULL,
+    const struct ArrowArrayView *upload_views =
+                                    !rc ? VgiBatchGet(&result.batch, "upload_url") : NULL,
                                 *downloads =
                                     !rc ? VgiBatchGet(&result.batch, "download_url") : NULL,
-                                *expires = !rc ? VgiBatchGet(&result.batch, "expires_at") : NULL;
-    if (!rc && (!uploads || !downloads || result.batch.array.length < 0 ||
-                result.batch.array.length > 100))
+                                *expires = !rc ? VgiBatchGet(&result.batch, "expires_at") : NULL,
+                                *headers =
+                                    !rc ? VgiBatchGet(&result.batch, "upload_headers") : NULL;
+    if (!rc && (!upload_views || !downloads || result.batch.array.length != (int64_t)count ||
+                (headers && headers->storage_type != NANOARROW_TYPE_MAP)))
         rc = EINVAL;
     struct VgiExternalUploadUrl *urls =
         !rc ? calloc((size_t)result.batch.array.length, sizeof(*urls)) : NULL;
     if (!rc && !urls) rc = ENOMEM;
     size_t size = !rc ? (size_t)result.batch.array.length : 0;
     for (size_t i = 0; !rc && i < size; ++i) {
-        urls[i].upload_url = view_text(ArrowArrayViewGetStringUnsafe(uploads, (int64_t)i));
+        urls[i].upload_url = view_text(ArrowArrayViewGetStringUnsafe(upload_views, (int64_t)i));
         urls[i].download_url = view_text(ArrowArrayViewGetStringUnsafe(downloads, (int64_t)i));
         if (expires && !ArrowArrayViewIsNull(expires, (int64_t)i))
             urls[i].expires_at_us = ArrowArrayViewGetIntUnsafe(expires, (int64_t)i);
         if (!urls[i].upload_url || !urls[i].download_url) rc = ENOMEM;
+        if (!rc && headers && !ArrowArrayViewIsNull(headers, (int64_t)i)) {
+            const struct ArrowArrayView *pairs = headers->children[0];
+            int64_t from = ArrowArrayViewListChildOffset(headers, (int64_t)i),
+                    to = ArrowArrayViewListChildOffset(headers, (int64_t)i + 1);
+            for (int64_t j = from; !rc && j < to; ++j) {
+                char *name = view_text(ArrowArrayViewGetStringUnsafe(pairs->children[0], j));
+                char *value = view_text(ArrowArrayViewGetStringUnsafe(pairs->children[1], j));
+                rc = name && value ? VgiExternalUploadUrlAddHeader(&urls[i], name, value) : ENOMEM;
+                free(name);
+                free(value);
+            }
+        }
     }
     if (!rc) {
         *out = urls;

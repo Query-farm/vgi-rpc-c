@@ -56,19 +56,31 @@ origin configuration advertises the RPC headers and methods.
 ## External payloads
 
 `VgiRpcServerSetExternal` installs a `VgiExternalOptions` policy and storage
-allocator callback before serving. The allocator returns separately owned PUT
-and GET URLs plus an expiry. `VgiExternalPublish` encodes/compresses and uploads
-an IPC payload; `VgiExternalPointer` builds the zero-row pointer batch.
+allocator callback before serving. The allocator is called with the exact byte
+length and lowercase hex SHA-256 of one upload and returns separately owned PUT
+and GET URLs, an expiry, and the headers the PUT must carry. Backends that can
+sign the length and checksum (S3/R2: `content-length` and
+`x-amz-checksum-sha256`) must, so storage itself rejects a different body; the
+returned headers never include `Content-Length`. `VgiExternalPublish`
+encodes/compresses, hashes, and uploads an IPC payload; `VgiExternalPointer`
+builds the zero-row pointer batch.
 
 HTTP output externalization observes an Arrow-buffer threshold and per-response
 upload/wire caps. Logs and their data batch share one uploaded payload.
-The upload-control endpoint vends method-bound upload/download URL pairs.
+The upload-control endpoint (`POST {prefix}/__upload_url__/init`, advertised as
+`VGI-Upload-URL-Support: 2`) takes `uploads: list<struct<size: int64,
+sha256: utf8>>` (1-100 entries) and answers one row per entry with
+`upload_url`, `download_url`, `expires_at`, and `upload_headers`
+(`map<utf8, utf8>`). The retired `count` shape, empty or oversized lists,
+`size < 1`, malformed digests, and sizes above `VGI-Max-Upload-Bytes` are
+refused with HTTP 400 before any URL is minted.
 Pre-published references can be returned on every transport. Automatic output
 threshold externalization is currently an HTTP server feature; raw workers can
 return pre-published references explicitly.
 
 Resolution on client and server validates the URL on every redirect hop, bounds
-encoded and decompressed bytes, checks the optional SHA-256 digest, and verifies
+encoded and decompressed bytes, checks the SHA-256 digest (required on request
+pointers, which are refused without `vgi_rpc.location.sha256`), and verifies
 the inner schema and complete IPC framing. Nested pointers and multiple data
 batches are rejected. Inner application metadata and log records are preserved.
 Storage signing/credentials belong to the allocator supplied by the application;

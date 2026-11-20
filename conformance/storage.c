@@ -4,6 +4,7 @@
 #include <curl/curl.h>
 #include <errno.h>
 #include <json-c/json.h>
+#include <sodium.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
@@ -34,18 +35,31 @@ static int validate(void *state, const char *url) {
     curl_url_cleanup(parsed);
     return rc;
 }
-static int allocate(void *state, const struct ArrowSchema *schema, struct VgiExternalUploadUrl *out,
+/* Ask the fake storage for a URL pair sized and hashed for one upload; any
+ * headers it signs come back in "headers" and are sent on the PUT. */
+static int allocate(void *state, int64_t size, const char *sha256, struct VgiExternalUploadUrl *out,
                     struct ArrowError *error) {
-    (void)schema;
     struct ConformanceStorage *storage = state;
-    size_t size = strlen(storage->base_url) + 7;
-    char *url = malloc(size);
+    unsigned char digest[32];
+    char digest_b64[sodium_base64_ENCODED_LEN(32, sodium_base64_VARIANT_ORIGINAL)];
+    if (sodium_hex2bin(digest, sizeof(digest), sha256, strlen(sha256), NULL, NULL, NULL))
+        return EINVAL;
+    sodium_bin2base64(digest_b64, sizeof(digest_b64), digest, sizeof(digest),
+                      sodium_base64_VARIANT_ORIGINAL);
+    char request[160];
+    int request_length =
+        snprintf(request, sizeof(request), "{\"size\": %lld, \"sha256_b64\": \"%s\"}",
+                 (long long)size, digest_b64);
+    if (request_length < 0 || (size_t)request_length >= sizeof(request)) return EINVAL;
+    size_t url_size = strlen(storage->base_url) + 7;
+    char *url = malloc(url_size);
     if (!url) return ENOMEM;
-    snprintf(url, size, "%s/alloc", storage->base_url);
+    snprintf(url, url_size, "%s/alloc", storage->base_url);
     struct ArrowBuffer body;
     ArrowBufferInit(&body);
-    int rc = VgiExternalHttp(&storage->options, "POST", url, (struct ArrowBufferView){{"{}"}, 2},
-                             NULL, &body, error);
+    int rc = VgiExternalHttp(&storage->options, "POST", url,
+                             (struct ArrowBufferView){{request}, request_length}, NULL, NULL, 0,
+                             &body, error);
     struct json_object *value = NULL;
     if (!rc) {
         rc = ArrowBufferAppend(&body, "", 1);
@@ -64,6 +78,21 @@ static int allocate(void *state, const struct ArrowSchema *schema, struct VgiExt
             out->download_url = strdup(json_object_get_string(download));
             out->expires_at_us = ((int64_t)time(NULL) + 3600) * 1000000;
             if (!out->upload_url || !out->download_url) rc = ENOMEM;
+        }
+        struct json_object *headers = NULL;
+        if (!rc && json_object_object_get_ex(value, "upload_headers", &headers) && headers) {
+            if (!json_object_is_type(headers, json_type_object))
+                rc = EINVAL;
+            else {
+                json_object_object_foreach(headers, name, header) {
+                    if (rc) break;
+                    if (!json_object_is_type(header, json_type_string))
+                        rc = EINVAL;
+                    else
+                        rc = VgiExternalUploadUrlAddHeader(out, name,
+                                                           json_object_get_string(header));
+                }
+            }
         }
     }
     if (value) json_object_put(value);

@@ -250,7 +250,10 @@ static int http_op(struct Driver *d, const char *op, struct json_object *request
         json_object_object_add(value, "sticky_enabled",
                                json_object_new_boolean(caps->sticky_enabled));
         json_object_object_add(value, "upload_url_support",
-                               json_object_new_boolean(caps->upload_url_support));
+                               json_object_new_boolean(caps->upload_url_support != 0));
+        json_object_object_add(
+            value, "upload_url_version",
+            caps->upload_url_support ? json_object_new_int(caps->upload_url_support) : NULL);
         json_object_object_add(value, "externalization_enabled",
                                json_object_new_boolean(caps->externalization_enabled));
         const char *names[] = {"sticky_default_ttl", "max_request_bytes", "max_response_bytes",
@@ -267,11 +270,21 @@ static int http_op(struct Driver *d, const char *op, struct json_object *request
         return 0;
     }
     if (!strcmp(op, "request_upload_urls")) {
+        /* uploads: [{"size": N, "sha256": "<hex>"}, ...] (upload protocol v2). */
+        struct json_object *list = json_object_object_get(request, "uploads");
+        size_t wanted =
+            json_object_is_type(list, json_type_array) ? json_object_array_length(list) : 0;
+        struct VgiUploadRequest *uploads = calloc(wanted ? wanted : 1, sizeof(*uploads));
+        if (!uploads) return ENOMEM;
+        for (size_t i = 0; i < wanted; ++i) {
+            struct json_object *entry = json_object_array_get_idx(list, i);
+            uploads[i].size = json_object_get_int64(json_object_object_get(entry, "size"));
+            uploads[i].sha256 = json_object_get_string(json_object_object_get(entry, "sha256"));
+        }
         struct VgiExternalUploadUrl *urls = NULL;
         size_t count = 0;
-        int rc = VgiClientUploadUrls(d->client,
-                                     json_object_get_int(json_object_object_get(request, "count")),
-                                     &urls, &count);
+        int rc = VgiClientUploadUrls(d->client, uploads, wanted, &urls, &count);
+        free(uploads);
         if (rc)
             call_error(d, out);
         else {
@@ -282,6 +295,11 @@ static int http_op(struct Driver *d, const char *op, struct json_object *request
                 json_object_object_add(value, "download_url", string(urls[i].download_url));
                 json_object_object_add(value, "expires_at",
                                        json_object_new_int64(urls[i].expires_at_us / 1000000));
+                struct json_object *headers = json_object_new_object();
+                for (size_t h = 0; h < urls[i].header_count; ++h)
+                    json_object_object_add(headers, urls[i].headers[h].name,
+                                           string(urls[i].headers[h].value));
+                json_object_object_add(value, "upload_headers", headers);
                 json_object_array_add(values, value);
             }
             json_object_object_add(out, "urls", values);

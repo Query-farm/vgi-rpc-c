@@ -10,7 +10,10 @@ struct VgiClient;
 struct VgiClientHeader {
     const char *name, *value;
 };
+/* Upload URL protocol this client speaks (VGI-Upload-URL-Support: 2). */
+#define VGI_UPLOAD_URL_PROTOCOL 2
 struct VgiClientCapabilities {
+    /* upload_url_support: 0 absent, 1 the retired v1 ("true"), 2 sized/hashed v2. */
     int sticky_enabled, upload_url_support, externalization_enabled;
     int64_t sticky_default_ttl, max_request_bytes, max_response_bytes,
         max_externalized_response_bytes, max_upload_bytes; /* -1 if absent */
@@ -75,8 +78,17 @@ int VgiClientStreamClose(struct VgiClient *, int cancel);
 const char *VgiClientStreamToken(const struct VgiClient *);
 /* HTTP capabilities are read at connection time. */
 const struct VgiClientCapabilities *VgiClientCapabilities(const struct VgiClient *);
-int VgiClientUploadUrls(struct VgiClient *, int count, struct VgiExternalUploadUrl **out,
-                        size_t *out_count);
+/* One upload: exact body length (>= 1) and its lowercase hex SHA-256. */
+struct VgiUploadRequest {
+    int64_t size;
+    const char *sha256;
+};
+/* Request one URL pair per upload (1-100) from a v2 server; a v1 server is
+ * refused ("upload protocol is too old"). PUT exactly `size` bytes to each
+ * upload_url with every entry of its `headers`, and name the payload's sha256
+ * on the pointer. */
+int VgiClientUploadUrls(struct VgiClient *, const struct VgiUploadRequest *uploads, size_t count,
+                        struct VgiExternalUploadUrl **out, size_t *out_count);
 void VgiClientUploadUrlsFree(struct VgiExternalUploadUrl *, size_t);
 /* Session scopes nest. End pops and best-effort deletes unless detached. */
 int VgiClientSessionBegin(struct VgiClient *, const char *token);

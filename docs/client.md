@@ -74,6 +74,9 @@ header arrays returned by accessors are borrowed from the active scope.
 For external results, supply `options.external`. Default external URL policy
 permits HTTPS; set a custom validator for other policies. NULL explicitly
 permits HTTP and HTTPS and is used by local conformance fixtures. Oversized HTTP
-requests can obtain upload URLs and publish their original IPC body before
-sending a pointer. Fetching always occurs in this native library, including on
+requests are uploaded only to servers advertising `VGI-Upload-URL-Support: 2`
+(a v1 server fails with "upload protocol is too old"): the client hashes the
+original IPC body, requests one URL for its size and SHA-256, PUTs exactly those
+bytes with every returned upload header, and sends a pointer carrying
+`vgi_rpc.location.sha256`. `VgiClientUploadUrls` exposes the same request. Fetching always occurs in this native library, including on
 raw byte-stream transports. See [external payloads](hosting.md#external-payloads).

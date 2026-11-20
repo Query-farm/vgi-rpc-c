@@ -919,41 +919,154 @@ static int identities_equal(const struct HttpStream *a, const struct HttpStream 
     return !strcmp(a->principal ? a->principal : "", b->principal ? b->principal : "") &&
            !strcmp(a->domain ? a->domain : "", b->domain ? b->domain : "");
 }
+static int upload_refuse(struct HttpTask *task, struct VgiRpcCall *call, const char *message) {
+    task->status = 400;
+    return VgiRpcFail(call, "ValueError", "INVALID_ARGUMENT", "", message);
+}
+static int lower_hex64(struct ArrowStringView text) {
+    if (text.size_bytes != 64) return 0;
+    for (int64_t i = 0; i < 64; ++i) {
+        char ch = text.data[i];
+        if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'))) return 0;
+    }
+    return 1;
+}
+#define UPLOAD_URL_MAX_ENTRIES 100
+/* Upload URL protocol v2: one (size, sha256) entry per upload; each URL is
+ * minted for exactly those bytes. The retired `count` shape is refused. */
 static int upload_urls(struct HttpTask *task, struct HttpStream *stream) {
     struct VgiRpcCall *call = &stream->call;
     const struct VgiExternalOptions *external = VgiRpcServerExternal(call->server);
+    char message[256];
     if (!equal(VgiMetadataGet((const char *)call->metadata.data, VGI_RPC_RPC_METHOD_KEY),
                "__upload_url__") ||
         !equal(VgiMetadataGet((const char *)call->metadata.data, VGI_RPC_REQUEST_VERSION_KEY),
-               "1") ||
-        call->request.array.length != 1 || call->request.schema.n_children != 1 ||
-        strcmp(call->request.schema.children[0]->format, "l") ||
-        !call->request.schema.children[0]->name ||
-        strcmp(call->request.schema.children[0]->name, "count"))
+               "1")) {
+        task->status = 400;
         return VgiRpcFail(call, "TypeError", "INVALID_ARGUMENT", "", "Invalid upload URL request");
-    int64_t count = VgiBatchInt(&call->request, "count", 1);
-    if (count < 1) count = 1;
-    if (count > 100) count = 100;
+    }
+    int64_t field = VgiFieldIndex(&call->request.schema, "uploads");
+    if (field < 0 || VgiFieldIndex(&call->request.schema, "count") >= 0)
+        return upload_refuse(task, call,
+                             "__upload_url__ request uses the retired count shape: this server "
+                             "requires VGI-Upload-URL-Support: 2 and an 'uploads' parameter "
+                             "(list<struct<size: int64, sha256: utf8>>, one entry per upload)");
+    if (call->request.array.length != 1) {
+        task->status = 400;
+        return VgiRpcFail(call, "TypeError", "INVALID_ARGUMENT", "",
+                          "__upload_url__ request must be exactly one row");
+    }
+    const struct ArrowSchema *list = call->request.schema.children[field];
+    const struct ArrowSchema *entry = list->n_children == 1 ? list->children[0] : NULL;
+    int64_t size_field = entry ? VgiFieldIndex(entry, "size") : -1,
+            sha_field = entry ? VgiFieldIndex(entry, "sha256") : -1;
+    if (call->request.schema.n_children != 1 ||
+        (strcmp(list->format, "+l") && strcmp(list->format, "+L")) || strcmp(entry->format, "+s") ||
+        size_field < 0 || sha_field < 0 || strcmp(entry->children[size_field]->format, "l") ||
+        (strcmp(entry->children[sha_field]->format, "u") &&
+         strcmp(entry->children[sha_field]->format, "U")))
+        return upload_refuse(task, call,
+                             "__upload_url__ 'uploads' must be "
+                             "list<struct<size: int64, sha256: utf8>> and the only parameter");
+    const struct ArrowArrayView *view = call->request.view.children[field];
+    if (ArrowArrayViewIsNull(view, 0))
+        return upload_refuse(task, call,
+                             "__upload_url__ 'uploads' must have 1-100 entries, got null");
+    const struct ArrowArrayView *entries = view->children[0];
+    const struct ArrowArrayView *sizes = entries->children[size_field],
+                                *hashes = entries->children[sha_field];
+    int64_t first = ArrowArrayViewListChildOffset(view, 0),
+            count = ArrowArrayViewListChildOffset(view, 1) - first;
+    if (count < 1 || count > UPLOAD_URL_MAX_ENTRIES) {
+        snprintf(message, sizeof(message),
+                 "__upload_url__ 'uploads' must have 1-%d entries, got %lld",
+                 UPLOAD_URL_MAX_ENTRIES, (long long)count);
+        return upload_refuse(task, call, message);
+    }
+    for (int64_t i = 0; i < count; ++i) {
+        int64_t at = first + i;
+        int null_entry = ArrowArrayViewIsNull(entries, at);
+        if (null_entry || ArrowArrayViewIsNull(sizes, at)) {
+            snprintf(message, sizeof(message),
+                     "__upload_url__ uploads[%lld].size must be an integer >= 1, got None",
+                     (long long)i);
+            return upload_refuse(task, call, message);
+        }
+        int64_t size = ArrowArrayViewGetIntUnsafe(sizes, at);
+        if (size < 1) {
+            snprintf(message, sizeof(message),
+                     "__upload_url__ uploads[%lld].size must be an integer >= 1, got %lld",
+                     (long long)i, (long long)size);
+            return upload_refuse(task, call, message);
+        }
+        if (ArrowArrayViewIsNull(hashes, at) ||
+            !lower_hex64(ArrowArrayViewGetStringUnsafe(hashes, at))) {
+            snprintf(message, sizeof(message),
+                     "__upload_url__ uploads[%lld].sha256 must be 64 lowercase hex characters",
+                     (long long)i);
+            return upload_refuse(task, call, message);
+        }
+        if (external->max_fetch_bytes > 0 && size > external->max_fetch_bytes) {
+            snprintf(message, sizeof(message),
+                     "__upload_url__ uploads[%lld].size %lld exceeds VGI-Max-Upload-Bytes (%lld)",
+                     (long long)i, (long long)size, (long long)external->max_fetch_bytes);
+            return upload_refuse(task, call, message);
+        }
+    }
     struct ArrowSchema schema = {0};
     ArrowSchemaInit(&schema);
-    int rc = ArrowSchemaSetTypeStruct(&schema, 3);
-    const char *names[] = {"upload_url", "download_url", "expires_at"};
+    int rc = ArrowSchemaSetTypeStruct(&schema, 4);
+    const char *names[] = {"upload_url", "download_url", "expires_at", "upload_headers"};
     const char *formats[] = {"u", "u", "tsu:UTC"};
-    for (int i = 0; !rc && i < 3; ++i) {
+    for (int i = 0; !rc && i < 4; ++i) {
         rc = ArrowSchemaSetName(schema.children[i], names[i]);
-        if (!rc) rc = ArrowSchemaSetFormat(schema.children[i], formats[i]);
+        if (!rc)
+            rc = i < 3 ? ArrowSchemaSetFormat(schema.children[i], formats[i])
+                       : ArrowSchemaSetType(schema.children[i], NANOARROW_TYPE_MAP);
+        if (!rc) schema.children[i]->flags &= ~ARROW_FLAG_NULLABLE;
     }
+    if (!rc)
+        rc =
+            ArrowSchemaSetType(schema.children[3]->children[0]->children[0], NANOARROW_TYPE_STRING);
+    if (!rc)
+        rc =
+            ArrowSchemaSetType(schema.children[3]->children[0]->children[1], NANOARROW_TYPE_STRING);
     struct VgiBatch result = {0};
     if (!rc) rc = VgiBatchInit(&result, &schema, &call->error);
     for (int64_t i = 0; !rc && i < count; ++i) {
         struct VgiExternalUploadUrl url = {0};
-        rc = external->allocate(external->storage_state, &call->request.schema, &url, &call->error);
+        struct ArrowStringView hash = ArrowArrayViewGetStringUnsafe(hashes, first + i);
+        char sha256[65];
+        memcpy(sha256, hash.data, 64);
+        sha256[64] = 0;
+        rc = external->allocate(external->storage_state,
+                                ArrowArrayViewGetIntUnsafe(sizes, first + i), sha256, &url,
+                                &call->error);
         if (!rc && (!url.upload_url || !url.download_url)) rc = EINVAL;
+        if (rc) {
+            task->status = 500;
+            if (!call->error_type) {
+                snprintf(message, sizeof(message), "Upload URL provider failed: %s",
+                         call->error.message[0] ? call->error.message : strerror(rc));
+                rc = VgiRpcFail(call, "RuntimeError", "INTERNAL", "", message);
+            }
+        }
         if (!rc)
             rc = ArrowArrayAppendString(result.array.children[0], ArrowCharView(url.upload_url));
         if (!rc)
             rc = ArrowArrayAppendString(result.array.children[1], ArrowCharView(url.download_url));
         if (!rc) rc = ArrowArrayAppendInt(result.array.children[2], url.expires_at_us);
+        struct ArrowArray *headers = !rc ? result.array.children[3] : NULL;
+        for (size_t h = 0; !rc && h < url.header_count; ++h) {
+            if (!strcasecmp(url.headers[h].name, "Content-Length")) continue;
+            rc = ArrowArrayAppendString(headers->children[0]->children[0],
+                                        ArrowCharView(url.headers[h].name));
+            if (!rc)
+                rc = ArrowArrayAppendString(headers->children[0]->children[1],
+                                            ArrowCharView(url.headers[h].value));
+            if (!rc) rc = ArrowArrayFinishElement(headers->children[0]);
+        }
+        if (!rc) rc = ArrowArrayFinishElement(headers);
         if (!rc) rc = ArrowArrayFinishElement(&result.array);
         VgiExternalUploadUrlReset(&url);
     }
@@ -1337,7 +1450,7 @@ static void capabilities(struct HttpServer *server, struct evhttp_request *reque
     evhttp_add_header(h, "VGI-Externalization-Enabled",
                       external && external->allocate ? "true" : "false");
     if (external && external->allocate) {
-        evhttp_add_header(h, "VGI-Upload-URL-Support", "true");
+        evhttp_add_header(h, "VGI-Upload-URL-Support", "2");
         snprintf(number, sizeof(number), "%lld", (long long)external->max_fetch_bytes);
         evhttp_add_header(h, "VGI-Max-Upload-Bytes", number);
     }

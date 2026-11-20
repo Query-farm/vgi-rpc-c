@@ -141,7 +141,7 @@ static int resolved_external_log(void *state, const char *level, const char *mes
 int VgiClientResolve(struct VgiClient *c, struct VgiAnnotatedBatch *batch) {
     int rc = VgiShmResolve(c->shm, &batch->batch, &batch->metadata, &c->arrow_error);
     if (!rc)
-        rc = VgiExternalResolveOptions(c->external_enabled ? &c->external : NULL, &batch->batch,
+        rc = VgiExternalResolveOptions(c->external_enabled ? &c->external : NULL, 0, &batch->batch,
                                        &batch->metadata, &c->arrow_error, resolved_external_log, c);
     if (rc)
         VgiClientSetError(c, "ExternalLocationError", "INVALID_ARGUMENT", c->arrow_error.message);

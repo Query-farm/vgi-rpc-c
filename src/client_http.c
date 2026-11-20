@@ -72,9 +72,14 @@ static int64_t number(const char *s) {
 }
 static void caps_read(struct VgiHttpClient *h) {
     h->caps.sticky_enabled = yes(header(h, "vgi-sticky-enabled"));
-    /* "2" is upload protocol v2 (sized, hashed uploads); "true" is the retired v1. */
+    /* "2" is upload protocol v2 (sized, hashed uploads); "true" is the retired
+     * v1; any other positive decimal without a leading zero is that version and
+     * anything else is unsupported (0). */
     const char *upload = header(h, "vgi-upload-url-support");
-    h->caps.upload_url_support = yes(upload) ? 1 : (int)(number(upload) > 0 ? number(upload) : 0);
+    int64_t version = *upload >= '1' && *upload <= '9' ? number(upload) : -1;
+    h->caps.upload_url_support = yes(upload)                           ? 1
+                                 : version > 0 && version <= INT32_MAX ? (int)version
+                                                                       : 0;
     h->caps.externalization_enabled = yes(header(h, "vgi-externalization-enabled"));
     h->caps.sticky_default_ttl = number(header(h, "vgi-sticky-default-ttl"));
     h->caps.max_request_bytes = number(header(h, "vgi-max-request-bytes"));

@@ -191,11 +191,12 @@ int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, cons
             int typed = 0;
             for (size_t i = 0; i < extra_count; ++i)
                 if (!strcasecmp(extra[i].name, "Content-Type")) typed = 1;
+            /* A PUT sends the provider's signed content type when it has one,
+             * otherwise application/octet-stream (as the reference does). */
             if (!typed)
                 headers = curl_slist_append(
-                    headers, !strcmp(method, "POST")
-                                 ? "Content-Type: application/json"
-                                 : "Content-Type: application/vnd.apache.arrow.stream");
+                    headers, !strcmp(method, "POST") ? "Content-Type: application/json"
+                                                     : "Content-Type: application/octet-stream");
             if (encoding && *encoding && strcmp(encoding, "identity")) {
                 char field[96];
                 snprintf(field, sizeof(field), "Content-Encoding: %s", encoding);

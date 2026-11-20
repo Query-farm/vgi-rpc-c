@@ -13,8 +13,23 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
+
+
+def _wait_listening(target: str, timeout: float = 30.0) -> None:
+    """Wait until the worker accepts connections; it may announce its port first."""
+    host, _, port = target.rpartition(":")
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            with socket.create_connection((host or "127.0.0.1", int(port)), timeout=1.0):
+                return
+        except OSError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.05)
 
 
 @contextlib.contextmanager
@@ -33,6 +48,8 @@ def worker(*args: str, tls: bool = False) -> Iterator[tuple[str, str | None]]:
             line = proc.stdout.readline().decode().strip()
             assert line.startswith("TLS-CA:"), line
             ca = line.split(":", 1)[1]
+        if line.startswith(("PORT:", "TCP:")):
+            _wait_listening(target)
         yield target, ca
     finally:
         proc.terminate()

@@ -2,6 +2,9 @@
  * cache (maximum age, Cache-Control, fail-closed expiry, unknown-kid limit)
  * against a loopback JWKS server with a fake monotonic clock. */
 #define _POSIX_C_SOURCE 200809L
+#ifdef __APPLE__
+#define _DARWIN_C_SOURCE 1
+#endif
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>

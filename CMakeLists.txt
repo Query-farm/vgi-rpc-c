@@ -53,9 +53,11 @@ if(VGI_RPC_CLIENT_ONLY)
 else()
     find_package(Threads REQUIRED)
     pkg_check_modules(LIBEVENT REQUIRED IMPORTED_TARGET libevent libevent_pthreads)
+    # JWT verification (ES256 and friends) for HTTP servers.
+    pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=3.0)
     add_library(vgi_rpc ${VGI_RPC_COMMON_SOURCES} src/rpc.c src/socket.c
         src/credentials.c src/identity.c src/http.c src/proof.c src/session.c src/token.c
-        src/pool.c src/telemetry.c)
+        src/pool.c src/telemetry.c src/jwt.c)
 endif()
 add_library(vgi_rpc::vgi_rpc ALIAS vgi_rpc)
 target_include_directories(vgi_rpc PUBLIC
@@ -67,7 +69,7 @@ target_link_libraries(vgi_rpc PUBLIC nanoarrow_ipc_static)
 target_link_libraries(vgi_rpc PRIVATE PkgConfig::JSONC PkgConfig::SODIUM
     PkgConfig::ZSTD PkgConfig::CURL ZLIB::ZLIB)
 if(NOT VGI_RPC_CLIENT_ONLY)
-    target_link_libraries(vgi_rpc PRIVATE PkgConfig::LIBEVENT Threads::Threads)
+    target_link_libraries(vgi_rpc PRIVATE PkgConfig::LIBEVENT PkgConfig::LIBCRYPTO Threads::Threads)
 endif()
 if(WIN32)
     target_compile_definitions(vgi_rpc PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX
@@ -114,6 +116,11 @@ if(VGI_RPC_BUILD_TESTS AND NOT VGI_RPC_CLIENT_ONLY)
     target_include_directories(vgi-rpc-security-test PRIVATE src)
     target_link_libraries(vgi-rpc-security-test PRIVATE vgi_rpc::vgi_rpc Threads::Threads)
     add_test(NAME security COMMAND vgi-rpc-security-test)
+    add_executable(vgi-rpc-jwt-test tests/jwt_test.c)
+    target_include_directories(vgi-rpc-jwt-test PRIVATE src)
+    target_link_libraries(vgi-rpc-jwt-test PRIVATE vgi_rpc::vgi_rpc PkgConfig::LIBCRYPTO
+        PkgConfig::SODIUM Threads::Threads)
+    add_test(NAME jwt COMMAND vgi-rpc-jwt-test)
     add_executable(vgi-rpc-batch-test tests/batch_test.c)
     target_link_libraries(vgi-rpc-batch-test PRIVATE vgi_rpc::vgi_rpc)
     add_test(NAME batch COMMAND vgi-rpc-batch-test)

@@ -77,6 +77,11 @@ struct HttpTask {
     struct json_object *log;
     struct ArrowBuffer body, response;
     int status, rpc_error, is_delete;
+    /* require_authentication: a GET/HEAD/OPTIONS request answered after
+     * authentication, and the status owed to a request whose body the input
+     * filter withheld (413, 400, or 0 when authentication was predicted to fail). */
+    int simple, health, is_options, body_withheld, withheld_status;
+    int closed; /* The connection closed while the task ran. */
     int64_t external_bytes;
     char retry_after[32];
     struct timespec started;
@@ -97,7 +102,16 @@ struct HttpWire {
     struct HttpWire *next;
     int64_t remaining;
     int head;
+    /* require_authentication input side: the request head being collected,
+     * what to do with the bytes after it, and which request (by ordinal)
+     * had its body withheld or must close the connection. */
+    struct ArrowBuffer request_head;
+    int input_state;
+    int64_t input_remaining;
+    uint64_t heads, received, withheld_ordinal, close_ordinal;
+    int withheld_status;
 };
+enum { INPUT_HEAD, INPUT_BODY, INPUT_RAW, INPUT_DISCARD };
 static void wire_read_ready(struct bufferevent *bev, void *opaque) {
     struct HttpWire *wire = opaque;
     if (wire->read_callback) wire->read_callback(bev, wire->callback_state);
@@ -189,8 +203,189 @@ static enum bufferevent_filter_result wire_output(struct evbuffer *source,
     }
     return moved ? BEV_OK : BEV_NEED_MORE;
 }
+static int health_target(const struct HttpServer *server, const char *target, size_t n) {
+    const char *prefix = server->options.prefix ? server->options.prefix : "/vgi";
+    size_t prefix_length = strlen(prefix);
+    return (n == 7 && !memcmp(target, "/health", 7)) ||
+           (n == prefix_length + 7 && !memcmp(target, prefix, prefix_length) &&
+            !memcmp(target + prefix_length, "/health", 7));
+}
+static int header_is(const char *line, size_t n, const char *name, const char **value,
+                     size_t *value_length) {
+    size_t name_length = strlen(name);
+    if (n <= name_length || line[name_length] != ':' || strncasecmp(line, name, name_length))
+        return 0;
+    const char *v = line + name_length + 1, *end = line + n;
+    while (v < end && (*v == ' ' || *v == '\t')) ++v;
+    while (end > v && (end[-1] == ' ' || end[-1] == '\t')) --end;
+    *value = v;
+    *value_length = (size_t)(end - v);
+    return 1;
+}
+/* require_authentication: inspect each request head before libevent reads
+ * the body. A request that will be refused, whose declared body is too large
+ * or whose framing is unusable reaches libevent with its Content-Length and
+ * Transfer-Encoding removed, so it is dispatched at once with no body and
+ * authenticated before anything else; the rest of the connection is then
+ * drained and discarded until the reply closes it. */
+static enum bufferevent_filter_result wire_input(struct evbuffer *source,
+                                                 struct evbuffer *destination, ev_ssize_t limit,
+                                                 enum bufferevent_flush_mode mode, void *opaque) {
+    (void)limit;
+    (void)mode;
+    struct HttpWire *wire = opaque;
+    struct HttpServer *server = wire->server;
+    int moved = 0;
+    while (evbuffer_get_length(source)) {
+        if (wire->input_state == INPUT_DISCARD) {
+            evbuffer_drain(source, evbuffer_get_length(source));
+            return moved ? BEV_OK : BEV_NEED_MORE;
+        }
+        if (wire->input_state == INPUT_RAW) {
+            if (evbuffer_remove_buffer(source, destination, evbuffer_get_length(source)) < 0)
+                return BEV_ERROR;
+            return BEV_OK;
+        }
+        if (wire->input_state == INPUT_BODY) {
+            size_t n = evbuffer_get_length(source);
+            if ((uint64_t)wire->input_remaining < n) n = (size_t)wire->input_remaining;
+            if (evbuffer_remove_buffer(source, destination, n) < 0) return BEV_ERROR;
+            wire->input_remaining -= (int64_t)n;
+            if (!wire->input_remaining) wire->input_state = INPUT_HEAD;
+            moved = 1;
+            continue;
+        }
+        /* Blank lines before a request line are permitted (RFC 9112 2.2). */
+        if (!wire->request_head.size_bytes) {
+            unsigned char first;
+            evbuffer_copyout(source, &first, 1);
+            if (first == '\r' || first == '\n') {
+                if (evbuffer_remove_buffer(source, destination, 1) < 0) return BEV_ERROR;
+                moved = 1;
+                continue;
+            }
+        }
+        size_t available = evbuffer_get_length(source);
+        size_t wanted = 65536 + 4 - (size_t)wire->request_head.size_bytes;
+        if (available > wanted) available = wanted;
+        size_t old = (size_t)wire->request_head.size_bytes;
+        if (ArrowBufferReserve(&wire->request_head, (int64_t)available + 1)) return BEV_ERROR;
+        evbuffer_copyout(source, wire->request_head.data + old, available);
+        wire->request_head.size_bytes += (int64_t)available;
+        wire->request_head.data[wire->request_head.size_bytes] = 0;
+        const char *text = (const char *)wire->request_head.data;
+        const char *end = strstr(text + (old > 3 ? old - 3 : 0), "\r\n\r\n");
+        if (!end || memchr(text, 0, (size_t)wire->request_head.size_bytes)) {
+            evbuffer_drain(source, available);
+            if (wire->request_head.size_bytes < 65536 + 4 && !end)
+                return moved ? BEV_OK : BEV_NEED_MORE;
+            /* Too large or not text: let libevent refuse it as it would. */
+            if (evbuffer_add(destination, wire->request_head.data,
+                             (size_t)wire->request_head.size_bytes))
+                return BEV_ERROR;
+            wire->request_head.size_bytes = 0;
+            wire->input_state = INPUT_RAW;
+            moved = 1;
+            continue;
+        }
+        size_t head_length = (size_t)(end - text) + 4;
+        /* Bytes copied beyond the head stay in source for the next state. */
+        evbuffer_drain(source, head_length - old);
+        const char *line_end = strstr(text, "\r\n");
+        const char *space = memchr(text, ' ', (size_t)(line_end - text));
+        const char *target = space ? space + 1 : line_end;
+        const char *target_end = memchr(target, ' ', (size_t)(line_end - target));
+        if (!target_end) target_end = line_end;
+        size_t method_length = space ? (size_t)(space - text) : 0;
+        int is_post = method_length == 4 && !memcmp(text, "POST", 4);
+        int is_delete = method_length == 6 && !memcmp(text, "DELETE", 6);
+        int is_head = method_length == 4 && !memcmp(text, "HEAD", 4);
+        int is_options = method_length == 7 && !memcmp(text, "OPTIONS", 7);
+        int authorizations = 0, lengths = 0, chunked = 0, preflight = 0, bad_framing = 0;
+        int64_t length = 0;
+        char *authorization = NULL;
+        for (const char *line = line_end + 2; line < end + 2;) {
+            const char *next = strstr(line, "\r\n");
+            size_t n = (size_t)(next - line);
+            const char *value;
+            size_t value_length;
+            if (header_is(line, n, "Authorization", &value, &value_length)) {
+                if (!authorizations++) {
+                    authorization = malloc(value_length + 1);
+                    if (!authorization) return BEV_ERROR;
+                    memcpy(authorization, value, value_length);
+                    authorization[value_length] = 0;
+                }
+            } else if (header_is(line, n, "Content-Length", &value, &value_length)) {
+                int64_t parsed = 0;
+                int valid = value_length > 0 && value_length < 19;
+                for (size_t i = 0; valid && i < value_length; ++i) {
+                    valid = isdigit((unsigned char)value[i]);
+                    parsed = parsed * 10 + (value[i] - '0');
+                }
+                if (!valid || (lengths++ && parsed != length)) bad_framing = 1;
+                length = parsed;
+            } else if (header_is(line, n, "Transfer-Encoding", &value, &value_length))
+                chunked = 1;
+            else if (header_is(line, n, "Access-Control-Request-Method", &value, &value_length))
+                preflight = 1;
+            line = next + 2;
+        }
+        int has_body = chunked || length > 0;
+        int exempt = (is_head && health_target(server, target, (size_t)(target_end - target))) ||
+                     (is_options && preflight);
+        int refused = 0;
+        if (!exempt) {
+            if (authorizations != 1)
+                refused = 1;
+            else if (server->options.authenticate_early) {
+                int early =
+                    server->options.authenticate_early(server->options.auth_state, authorization);
+                refused = early == EACCES || early == ESTALE;
+            }
+        }
+        free(authorization);
+        int too_large = !chunked && length > server->options.max_request_bytes;
+        int withhold = !exempt && (refused || too_large || bad_framing ||
+                                   (has_body && !is_post && !is_delete));
+        ++wire->heads;
+        if (withhold) {
+            /* Forward the head without its framing headers. */
+            const char *line = text;
+            while (line < end + 2) {
+                const char *next = strstr(line, "\r\n");
+                size_t n = (size_t)(next - line);
+                const char *value;
+                size_t value_length;
+                if (line == text ||
+                    (!header_is(line, n, "Content-Length", &value, &value_length) &&
+                     !header_is(line, n, "Transfer-Encoding", &value, &value_length)))
+                    if (evbuffer_add(destination, line, n + 2)) return BEV_ERROR;
+                line = next + 2;
+            }
+            if (evbuffer_add(destination, "\r\n", 2)) return BEV_ERROR;
+            wire->withheld_ordinal = wire->heads;
+            wire->withheld_status = too_large ? 413 : bad_framing ? 400 : 0;
+            wire->input_state = INPUT_DISCARD;
+        } else {
+            if (evbuffer_add(destination, text, head_length)) return BEV_ERROR;
+            if (chunked) {
+                /* Bodies are not parsed here: stop inspecting and close after it. */
+                wire->close_ordinal = wire->heads;
+                wire->input_state = INPUT_RAW;
+            } else if (length > 0) {
+                wire->input_remaining = length;
+                wire->input_state = INPUT_BODY;
+            }
+        }
+        wire->request_head.size_bytes = 0;
+        moved = 1;
+    }
+    return moved ? BEV_OK : BEV_NEED_MORE;
+}
 static void wire_free(void *opaque) {
     struct HttpWire *wire = opaque;
+    ArrowBufferReset(&wire->request_head);
     if (wire->flush) event_free(wire->flush);
     if (wire->queued) evbuffer_remove_cb_entry(bufferevent_get_output(wire->bev), wire->queued);
     if (wire->drained)
@@ -235,8 +430,10 @@ static struct bufferevent *wire_new(struct event_base *base, void *opaque) {
         return NULL;
     }
     wire->server = server;
+    ArrowBufferInit(&wire->request_head);
     wire->bev =
-        bufferevent_filter_new(socket, NULL, wire_output, BEV_OPT_CLOSE_ON_FREE, wire_free, wire);
+        bufferevent_filter_new(socket, server->options.require_authentication ? wire_input : NULL,
+                               wire_output, BEV_OPT_CLOSE_ON_FREE, wire_free, wire);
     if (!wire->bev) {
         bufferevent_free(socket);
         free(wire);
@@ -259,6 +456,7 @@ static struct ArrowBufferView bytes(const struct ArrowBuffer *b) {
     return (struct ArrowBufferView){{b->data}, b->size_bytes};
 }
 static char *copy(const char *s) { return strdup(s ? s : ""); }
+static void health_body(struct HttpServer *server, struct evbuffer *body);
 static int equal(struct ArrowStringView a, const char *b) {
     return a.size_bytes == (int64_t)strlen(b) && !memcmp(a.data, b, (size_t)a.size_bytes);
 }
@@ -401,8 +599,11 @@ static int authenticate(struct HttpTask *task, struct HttpStream *stream) {
             stream->domain = copy(identity.domain);
             stream->call.auth_time = identity.auth_time;
             stream->call.has_auth_time = identity.has_auth_time;
-            if ((identity.principal && !stream->principal) || !stream->domain) rc = ENOMEM;
+            if ((identity.principal && !stream->principal) || !stream->domain ||
+                (identity.claims_json && !stream->call.auth_claims_json))
+                rc = ENOMEM;
         }
+        if (o->release_identity) o->release_identity(o->auth_state, &identity);
     } else {
         int required = o->bearer_tokens && *o->bearer_tokens;
         if (!*task->authorization)
@@ -466,6 +667,8 @@ static int authenticate(struct HttpTask *task, struct HttpStream *stream) {
                 o->identity->release_result(o->identity->state, &result, 0);
         }
     }
+    if (!rc && o->require_authentication && (!stream->principal || !*stream->principal))
+        rc = EACCES;
 auth_complete:
     if (!rc && task->server->proof) {
         struct json_object *claims = stream->call.auth_claims_json
@@ -1095,6 +1298,33 @@ static int dispatch_core(struct HttpTask *task) {
         stream_free(s);
         return 0;
     }
+    if (task->simple) {
+        /* require_authentication: health, OPTIONS and other paths, authenticated. */
+        task->response_type = "application/json";
+        if (task->health && !task->is_options) {
+            struct evbuffer *body = evbuffer_new();
+            if (body) {
+                health_body(task->server, body);
+                size_t n = evbuffer_get_length(body);
+                if (ArrowBufferAppend(&task->response, evbuffer_pullup(body, -1), (int64_t)n))
+                    task->status = 500;
+                evbuffer_free(body);
+            } else
+                task->status = 500;
+        } else if (!task->is_options)
+            task->status = 404;
+        stream_free(s);
+        return 0;
+    }
+    if (task->body_withheld) {
+        /* Authenticated, but the body was never read: too large, unusable
+         * framing, or (rarely) keys that changed after the early check. */
+        task->status = task->withheld_status ? task->withheld_status : 503;
+        if (!task->withheld_status) snprintf(task->retry_after, sizeof(task->retry_after), "1");
+        task->response_type = "application/json";
+        stream_free(s);
+        return 0;
+    }
     const char *path = task->path;
     const char *prefix = server->options.prefix ? server->options.prefix : "/vgi";
     size_t prefix_length = strlen(prefix);
@@ -1493,40 +1723,77 @@ static void capabilities(struct HttpServer *server, struct evhttp_request *reque
         }
     }
 }
+static void free_request(evutil_socket_t fd, short events, void *opaque) {
+    (void)fd;
+    (void)events;
+    evhttp_request_free(opaque);
+}
+/* An owned request whose reply could not be written: free it once libevent
+ * has finished tearing the connection down. */
+static void closed_after_reply(struct evhttp_connection *connection, void *opaque) {
+    struct timeval now = {0, 0};
+    event_base_once(evhttp_connection_get_base(connection), -1, EV_TIMEOUT, free_request, opaque,
+                    &now);
+}
+/* The reply was written and libevent frees the request: forget it. */
+static void request_sent(struct evhttp_request *request, void *opaque) {
+    (void)opaque;
+    struct evhttp_connection *connection = evhttp_request_get_connection(request);
+    if (connection) evhttp_connection_set_closecb(connection, NULL, NULL);
+}
+/* The connection closed while its task ran. */
+static void closed_during_task(struct evhttp_connection *connection, void *opaque) {
+    (void)connection;
+    ((struct HttpTask *)opaque)->closed = 1;
+}
 static void complete(evutil_socket_t fd, short events, void *opaque) {
     (void)fd;
     (void)events;
     struct HttpTask *task = opaque;
     struct HttpServer *server = task->server;
-    struct evkeyvalq *headers = evhttp_request_get_output_headers(task->request);
-    capabilities(server, task->request, task->id);
-    evhttp_add_header(headers, "Content-Type", task->response_type);
-    if (*task->session.token) {
-        evhttp_add_header(headers, "VGI-Session", task->session.token);
-        for (size_t i = 0; i < server->options.sticky_echo_count; ++i) {
-            char name[512];
-            snprintf(name, sizeof(name), "VGI-Echo-%s", server->options.sticky_echo_names[i]);
-            evhttp_add_header(headers, name, server->options.sticky_echo_values[i]);
+    if (task->closed) {
+        /* libevent dropped the connection and its list entry; the request is ours. */
+        evhttp_request_free(task->request);
+    } else {
+        struct evkeyvalq *headers = evhttp_request_get_output_headers(task->request);
+        capabilities(server, task->request, task->id);
+        evhttp_add_header(headers, "Content-Type", task->response_type);
+        if (*task->session.token) {
+            evhttp_add_header(headers, "VGI-Session", task->session.token);
+            for (size_t i = 0; i < server->options.sticky_echo_count; ++i) {
+                char name[512];
+                snprintf(name, sizeof(name), "VGI-Echo-%s", server->options.sticky_echo_names[i]);
+                evhttp_add_header(headers, name, server->options.sticky_echo_values[i]);
+            }
         }
+        if (task->session.closed) evhttp_add_header(headers, "VGI-Session-Close", "true");
+        if (task->rpc_error) evhttp_add_header(headers, "X-VGI-RPC-Error", "true");
+        if (task->response_encoding)
+            evhttp_add_header(headers, task->encoding_header, task->response_encoding);
+        if (task->status == 401) {
+            if (server->options.proof.mode == VGI_PROOF_REQUIRE)
+                evhttp_add_header(headers, "VGI-Auth-Proxy-Required", "true");
+            evhttp_add_header(headers, "Cache-Control", "no-store");
+            evhttp_add_header(headers, "WWW-Authenticate",
+                              server->options.auth_challenge ? server->options.auth_challenge
+                                                             : "Bearer realm=\"vgi\"");
+            evhttp_add_header(headers, "VGI-Auth-Reason",
+                              task->auth_reason ? task->auth_reason : "invalid_credential");
+        }
+        if (task->status == 503)
+            evhttp_add_header(headers, "Retry-After", *task->retry_after ? task->retry_after : "1");
+        struct evbuffer *body = evbuffer_new();
+        if (body) evbuffer_add(body, task->response.data, (size_t)task->response.size_bytes);
+        /* The request is owned (it outlived the receive callback). libevent frees it
+         * once the reply is written; if the write fails instead, the connection's
+         * close callback frees it. */
+        struct evhttp_connection *connection = evhttp_request_get_connection(task->request);
+        evhttp_request_set_on_complete_cb(task->request, request_sent, NULL);
+        if (connection)
+            evhttp_connection_set_closecb(connection, closed_after_reply, task->request);
+        evhttp_send_reply(task->request, body ? task->status : 500, NULL, body);
+        if (body) evbuffer_free(body);
     }
-    if (task->session.closed) evhttp_add_header(headers, "VGI-Session-Close", "true");
-    if (task->rpc_error) evhttp_add_header(headers, "X-VGI-RPC-Error", "true");
-    if (task->response_encoding)
-        evhttp_add_header(headers, task->encoding_header, task->response_encoding);
-    if (task->status == 401) {
-        if (server->options.proof.mode == VGI_PROOF_REQUIRE)
-            evhttp_add_header(headers, "VGI-Auth-Proxy-Required", "true");
-        evhttp_add_header(headers, "Cache-Control", "no-store");
-        evhttp_add_header(headers, "WWW-Authenticate", "Bearer realm=\"vgi\"");
-        evhttp_add_header(headers, "VGI-Auth-Reason",
-                          task->auth_reason ? task->auth_reason : "invalid_credential");
-    }
-    if (task->status == 503)
-        evhttp_add_header(headers, "Retry-After", *task->retry_after ? task->retry_after : "1");
-    struct evbuffer *body = evbuffer_new();
-    if (body) evbuffer_add(body, task->response.data, (size_t)task->response.size_bytes);
-    evhttp_send_reply(task->request, body ? task->status : 500, NULL, body);
-    if (body) evbuffer_free(body);
     if (server->access_log && task->log) {
         if (server->sessions) {
             json_object_object_add(task->log, "session_id",
@@ -1604,6 +1871,16 @@ static int header_count(struct evhttp_request *request, const char *name) {
     for (; p; p = p->next.tqe_next) count += !strcasecmp(p->key, name);
     return count;
 }
+static void health_body(struct HttpServer *server, struct evbuffer *body) {
+    struct json_object *info = json_object_new_object();
+    json_object_object_add(info, "status", json_object_new_string("ok"));
+    json_object_object_add(info, "server_id", json_object_new_string(VgiRpcServerId(server->rpc)));
+    json_object_object_add(info, "protocol",
+                           json_object_new_string(VgiRpcPrimaryProtocol(server->rpc)));
+    const char *text = json_object_to_json_string_ext(info, JSON_C_TO_STRING_PLAIN);
+    evbuffer_add(body, text, strlen(text));
+    json_object_put(info);
+}
 static void receive(struct evhttp_request *request, void *opaque) {
     struct HttpServer *server = opaque;
     char id[65];
@@ -1612,37 +1889,50 @@ static void receive(struct evhttp_request *request, void *opaque) {
     enum evhttp_cmd_type method = evhttp_request_get_command(request);
     struct bufferevent *bev =
         evhttp_connection_get_bufferevent(evhttp_request_get_connection(request));
+    int withheld = 0, withheld_status = 0;
     for (struct HttpWire *wire = server->wires; wire; wire = wire->next)
         if (wire->bev == bev) {
             wire->head = method == EVHTTP_REQ_HEAD;
+            ++wire->received;
+            if (wire->withheld_ordinal && wire->received == wire->withheld_ordinal) {
+                withheld = 1;
+                withheld_status = wire->withheld_status;
+            }
+            /* The rest of a withheld body is discarded, so the connection ends. */
+            if (withheld || (wire->close_ordinal && wire->received == wire->close_ordinal))
+                evhttp_add_header(evhttp_request_get_output_headers(request), "Connection",
+                                  "close");
             break;
         }
     char health_path[1024];
     snprintf(health_path, sizeof(health_path), "%s/health",
              server->options.prefix ? server->options.prefix : "/vgi");
-    if (((!strcmp(uri, "/health") || !strcmp(uri, health_path)) &&
-         (method == EVHTTP_REQ_GET || method == EVHTTP_REQ_HEAD)) ||
-        method == EVHTTP_REQ_OPTIONS) {
+    int health = !strcmp(uri, "/health") || !strcmp(uri, health_path);
+    int simple = 0;
+    if (server->options.require_authentication) {
+        /* Only the liveness probe and credential-less CORS preflights are anonymous. */
+        int preflight = method == EVHTTP_REQ_OPTIONS &&
+                        evhttp_find_header(evhttp_request_get_input_headers(request),
+                                           "Access-Control-Request-Method");
+        if ((health && method == EVHTTP_REQ_HEAD) || preflight) {
+            capabilities(server, request, id);
+            evhttp_add_header(evhttp_request_get_output_headers(request), "Content-Type",
+                              "application/json");
+            evhttp_send_reply(request, 200, NULL, NULL);
+            return;
+        }
+        simple = method != EVHTTP_REQ_POST && method != EVHTTP_REQ_DELETE;
+    } else if ((health && (method == EVHTTP_REQ_GET || method == EVHTTP_REQ_HEAD)) ||
+               method == EVHTTP_REQ_OPTIONS) {
         capabilities(server, request, id);
         struct evbuffer *body = evbuffer_new();
-        if (body && method == EVHTTP_REQ_GET) {
-            struct json_object *info = json_object_new_object();
-            json_object_object_add(info, "status", json_object_new_string("ok"));
-            json_object_object_add(info, "server_id",
-                                   json_object_new_string(VgiRpcServerId(server->rpc)));
-            json_object_object_add(info, "protocol",
-                                   json_object_new_string(VgiRpcPrimaryProtocol(server->rpc)));
-            const char *text = json_object_to_json_string_ext(info, JSON_C_TO_STRING_PLAIN);
-            evbuffer_add(body, text, strlen(text));
-            json_object_put(info);
-        }
+        if (body && method == EVHTTP_REQ_GET) health_body(server, body);
         evhttp_add_header(evhttp_request_get_output_headers(request), "Content-Type",
                           "application/json");
         evhttp_send_reply(request, 200, NULL, body);
         if (body) evbuffer_free(body);
         return;
-    }
-    if (method != EVHTTP_REQ_POST && method != EVHTTP_REQ_DELETE) {
+    } else if (method != EVHTTP_REQ_POST && method != EVHTTP_REQ_DELETE) {
         capabilities(server, request, id);
         evhttp_send_reply(request, 404, NULL, NULL);
         return;
@@ -1689,6 +1979,11 @@ static void receive(struct evhttp_request *request, void *opaque) {
     }
     task->request = request;
     task->is_delete = method == EVHTTP_REQ_DELETE;
+    task->simple = simple;
+    task->health = health;
+    task->is_options = method == EVHTTP_REQ_OPTIONS;
+    task->body_withheld = withheld;
+    task->withheld_status = withheld_status;
     task->status = 200;
     task->response_type = HTTP_ARROW;
     ArrowBufferInit(&task->body);
@@ -1724,6 +2019,7 @@ static void receive(struct evhttp_request *request, void *opaque) {
         return;
     }
     evhttp_request_own(request);
+    evhttp_connection_set_closecb(evhttp_request_get_connection(request), closed_during_task, task);
     ++server->active;
     pthread_t thread;
     rc = pthread_create(&thread, NULL, run_task, task);

@@ -19,6 +19,20 @@ Upload URL protocol v2 (wire-incompatible; pairs with vgi protocol 3.4.0).
 - Request pointers without `vgi_rpc.location.sha256` are refused; a digest
   mismatch reports `sha256 mismatch`.
 
+JWT verification and authentication before the body (for Orchard hosted mode
+in vgi-c).
+
+- `<vgi_rpc/jwt.h>`: `VgiJwtVerifier` verifies JWT bearer tokens against a
+  JWKS (ES256 by default; ES384/512, RS256/384/512, PS256/384/512 by name;
+  never `none` or HS*), with `typ`, exact `iss`/`aud`, single audience,
+  required `exp`, leeway, a hard key-set maximum age that fails closed (503),
+  `Cache-Control: max-age`, and a rate-limited unknown-`kid` re-fetch. The full
+  server now links OpenSSL 3 `libcrypto`.
+- `VgiHttpOptions` gains `require_authentication` (every request but
+  `HEAD /health` and CORS preflights authenticates, before its body is read,
+  size-checked or decoded), `authenticate_early`, `release_identity` and
+  `auth_challenge`.
+
 ## [0.1.0] — 2026-11-04
 
 First release. C11 clients and servers for the vgi-rpc protocol, tested against

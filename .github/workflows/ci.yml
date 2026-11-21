@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Native dependencies
-        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libjson-c-dev libsodium-dev libevent-dev libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev
+        run: sudo apt-get update && sudo apt-get install -y cmake pkg-config libjson-c-dev libsodium-dev libevent-dev libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev libssl-dev
       - uses: actions/checkout@v4
         with:
           repository: Query-farm/vgi-rpc-python
@@ -48,10 +48,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Native dependencies
-        run: brew install pkg-config json-c libsodium libevent curl zstd lz4
+        run: brew install pkg-config json-c libsodium libevent curl zstd lz4 openssl@3
       - name: Build and native tests
         run: |
-          PKG_CONFIG_PATH="$(brew --prefix curl)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          PKG_CONFIG_PATH="$(brew --prefix curl)/lib/pkgconfig:$(brew --prefix openssl@3)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
           export PKG_CONFIG_PATH
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel 12

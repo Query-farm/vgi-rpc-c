@@ -12,6 +12,14 @@ Declarations below are included directly from the public headers.
 --8<-- "include/vgi_rpc/http.h"
 ```
 
+## JWT verification
+
+[`vgi_rpc/jwt.h` on GitHub](https://github.com/Query-farm/vgi-rpc-c/blob/main/include/vgi_rpc/jwt.h)
+
+```c title="vgi_rpc/jwt.h" linenums="1"
+--8<-- "include/vgi_rpc/jwt.h"
+```
+
 ## Identity and grants
 
 [`vgi_rpc/identity.h` on GitHub](https://github.com/Query-farm/vgi-rpc-c/blob/main/include/vgi_rpc/identity.h)

@@ -61,6 +61,24 @@ struct VgiHttpOptions {
     int (*authenticate_request)(void *, const struct VgiHttpRequest *, struct VgiHttpIdentity *,
                                 struct ArrowError *);
     void *auth_state;
+    /* Optional; called once the runtime has copied an authenticate or
+     * authenticate_request identity, accepted or not. */
+    void (*release_identity)(void *, struct VgiHttpIdentity *);
+    /* Optional, non-blocking; runs on the event loop as soon as a request's
+     * head arrives, before any of its body is read. EACCES or ESTALE predicts
+     * that authentication will refuse the request, whose body is then never
+     * read; zero lets the request continue. Only used with
+     * require_authentication. */
+    int (*authenticate_early)(void *, const char *authorization);
+    /* Every request except HEAD /health and CORS preflights (OPTIONS with
+     * Access-Control-Request-Method) must authenticate, including GET /health,
+     * other OPTIONS requests and unknown paths. Authentication then precedes
+     * reading, size-checking and decoding the body: a declared body larger
+     * than max_request_bytes is answered only after authentication succeeds.
+     * Bodies the runtime does not read close the connection. */
+    int require_authentication;
+    /* WWW-Authenticate on 401 responses; NULL means Bearer realm="vgi". */
+    const char *auth_challenge;
 };
 void VgiHttpOptionsInit(struct VgiHttpOptions *);
 /* Serves until SIGINT/SIGTERM. Prints PORT:<port> after binding (port 0 selects

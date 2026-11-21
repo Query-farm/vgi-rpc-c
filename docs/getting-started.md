@@ -11,14 +11,15 @@ You need a C11 compiler, CMake 3.20+, and the native libraries below.
 === "macOS"
 
     ```sh
-    brew install cmake pkg-config json-c libsodium libevent curl zstd lz4
+    brew install cmake pkg-config json-c libsodium libevent curl zstd lz4 openssl@3
     ```
 
 === "Debian / Ubuntu"
 
     ```sh
     sudo apt-get install build-essential cmake pkg-config libjson-c-dev \
-      libsodium-dev libevent-dev libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev
+      libsodium-dev libevent-dev libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev \
+      libssl-dev
     ```
 
 ## Build

@@ -36,6 +36,52 @@ available in `identity.h` and `credentials.h`. The framework protocol is
 `expires_at` field, in Unix seconds, is still accepted when `expires_at_us` is
 zero.
 
+### JWT access tokens
+
+`<vgi_rpc/jwt.h>` verifies JWT bearer tokens (RFC 7519, RFC 9068) against a
+JWKS. Create a `VgiJwtVerifier` from `VgiJwtOptions` (issuer, audience and JWKS
+URI are required) and attach it with `VgiJwtInstall`, which sets `authenticate`,
+`authenticate_early` and `release_identity`. The verifier is thread-safe and
+must outlive the server.
+
+- Algorithms come from a comma-separated allow-list (default `ES256`; ES384,
+  ES512, RS256/384/512 and PS256/384/512 may be named). `none` and `HS*` are
+  refused when the verifier is created. Keys come only from `jwks_uri`, never
+  from token headers, and a token with a `crit` header is refused.
+- `required_typ` (for example `at+jwt`) compares case-insensitively with an
+  optional `application/` prefix. `iss` and `aud` match exactly;
+  `single_audience` refuses a token naming several audiences. `require_exp`
+  makes `exp` mandatory. `exp`, `nbf` and `iat` must be numbers and are checked
+  with `leeway_seconds` of skew. The principal claim (`sub` by default) must be
+  a non-empty string.
+- The claim set reaches the call as `auth_claims_json`, exactly as signed, so
+  claims keep their JSON types.
+- `jwks_max_age_seconds` bounds how long fetched keys are used; a shorter
+  `Cache-Control: max-age` wins. When it passes the keys are dropped: if the
+  re-fetch fails, requests get `503` with `Retry-After`, and stale keys are
+  never used. An unknown `kid` triggers a re-fetch at most once per
+  `jwks_refresh_min_interval_seconds`. Each fetch has a timeout (10 s by
+  default), follows no redirects and accepts at most 1 MiB.
+- Input limits apply before any allocation proportional to the input: tokens
+  over 16 KiB, JSON nested deeper than 16 levels, embedded NUL bytes, invalid
+  base64url and trailing data are all refused.
+
+Verification uses OpenSSL 3 (`libcrypto`), which the full server links.
+
+### Authentication before the body
+
+`require_authentication` makes every request authenticate except `HEAD /health`
+and CORS preflights (`OPTIONS` with `Access-Control-Request-Method`). That
+includes `GET /health`, other `OPTIONS` requests and unknown paths, which are
+answered only after authentication succeeds. Authentication then runs before the
+body is read, size-checked or decoded: an input filter inspects each request
+head, and a request that `authenticate_early` predicts will be refused, or whose
+declared body exceeds `max_request_bytes`, is dispatched with its body withheld.
+It is authenticated first and gets `401` (or `503`), or `413` once
+authenticated. The rest of that connection is discarded and the reply closes it.
+`auth_challenge` replaces the `WWW-Authenticate` value on `401` responses.
+Orchard hosted mode in vgi-c is built on these options.
+
 Proxy proofs support off, allow, and require modes, origin binding, key rotation,
 clock skew, and a bounded nonce replay cache. Set the proof options explicitly
 for a proxy deployment. Authentication and proof checks run before application

@@ -7,8 +7,9 @@ named pipes, Winsock, and file mappings. No Arrow C++ or DuckDB library is
 linked.
 
 Both variants link nanoarrow IPC, json-c, libsodium, libcurl, zstd, LZ4, and
-zlib. The full server additionally links libevent with pthread support and the
-platform thread library.
+zlib. The full server additionally links libevent with pthread support, OpenSSL 3
+`libcrypto` (JWT signature verification) and the platform thread library. On
+macOS, add `$(brew --prefix openssl@3)/lib/pkgconfig` to `PKG_CONFIG_PATH`.
 
 ## nanoarrow source
 

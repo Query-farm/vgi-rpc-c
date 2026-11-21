@@ -44,18 +44,20 @@ scope and [hosting](docs/hosting.md) for HTTP deployment options.
 ## Installation
 
 Requires CMake 3.20+, a C11 compiler, pkg-config, json-c, libsodium, libcurl,
-zstd, LZ4, and zlib. The full server also requires libevent and pthreads. The
+zstd, LZ4, and zlib. The full server also requires libevent, pthreads and
+OpenSSL 3 (`libcrypto`, for JWT verification). The
 client-only runtime supports Windows/MSVC without those server dependencies;
 see [building](docs/building.md) for the tested variants. The API may change
 between 0.x minor releases.
 
 ```sh
 # macOS
-brew install cmake pkg-config json-c libsodium libevent curl zstd lz4
+brew install cmake pkg-config json-c libsodium libevent curl zstd lz4 openssl@3
 
 # Debian / Ubuntu
 sudo apt-get install build-essential cmake pkg-config libjson-c-dev \
-  libsodium-dev libevent-dev libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev
+  libsodium-dev libevent-dev libcurl4-openssl-dev libzstd-dev liblz4-dev zlib1g-dev \
+  libssl-dev
 
 git clone https://github.com/Query-farm/vgi-rpc-c.git
 cd vgi-rpc-c

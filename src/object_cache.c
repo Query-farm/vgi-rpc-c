@@ -5,6 +5,8 @@
  * principal's value to another who merely knows its hash. Single-flight,
  * byte-bounded LRU, and an entry fetched more than a day ago is a miss. */
 #define _POSIX_C_SOURCE 200809L
+/* _SC_PHYS_PAGES is a Darwin extension on macOS. */
+#define _DARWIN_C_SOURCE 1
 #include <errno.h>
 #include <inttypes.h>
 #include <pthread.h>

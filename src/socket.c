@@ -4,6 +4,7 @@
 #include <netdb.h>
 #include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -57,6 +58,13 @@ static void *serve_connection(void *data) {
 int VgiRpcServerServeSocket(struct VgiRpcServer *worker, const char *unix_path,
                             const char *tcp_address, double idle_seconds,
                             struct ArrowError *error) {
+#ifndef _WIN32
+    /* A peer that disconnects mid-response must fail the write (EPIPE), not
+     * kill the process: ignore SIGPIPE unless the application handles it. */
+    struct sigaction current;
+    if (!sigaction(SIGPIPE, NULL, &current) && current.sa_handler == SIG_DFL)
+        signal(SIGPIPE, SIG_IGN);
+#endif
     VgiRpcServerBindTransport(worker, unix_path ? VGI_TRANSPORT_UNIX : VGI_TRANSPORT_TCP);
     int listener = -1, rc = 0;
     char host[256] = "127.0.0.1", port[16] = "0";

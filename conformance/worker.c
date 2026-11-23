@@ -581,6 +581,7 @@ int main(int argc, char **argv) {
     int rc = VgiRpcServerAddProtocol(server, &protocol, &error);
     if (!rc) rc = ConformanceSecondaryRegister(server, &error);
     const char *unix_path = NULL, *tcp_address = NULL;
+    double idle_seconds = 0;
     int http = 0;
     struct VgiHttpOptions options;
     VgiHttpOptionsInit(&options);
@@ -648,6 +649,8 @@ int main(int argc, char **argv) {
             unix_path = argv[++i];
         else if (i + 1 < argc && !strcmp(argv[i], "--tcp"))
             tcp_address = argv[++i];
+        else if (i + 1 < argc && !strcmp(argv[i], "--idle-timeout"))
+            idle_seconds = strtod(argv[++i], NULL);
         else if (i + 1 < argc && !strcmp(argv[i], "--access-log"))
             options.access_log = argv[++i];
         else if (i + 1 < argc && !strcmp(argv[i], "--signing-key"))
@@ -697,7 +700,7 @@ int main(int argc, char **argv) {
     if (!rc)
         rc = http ? VgiRpcServerServeHttp(server, &options, &error)
              : unix_path || tcp_address
-                 ? VgiRpcServerServeSocket(server, unix_path, tcp_address, 0, &error)
+                 ? VgiRpcServerServeSocket(server, unix_path, tcp_address, idle_seconds, &error)
                  : VgiRpcServerServe(server, stdin, stdout, &error);
     if (rc) fprintf(stderr, "vgi-rpc-c: %s (error %d)\n", error.message, rc);
     VgiRpcServerFree(server);

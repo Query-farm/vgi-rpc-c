@@ -44,6 +44,17 @@ HTTP stream state in process, so it follows the single-replica rules (§5.4).
   600.
 - A `max_request_bytes` below 16384 logs a startup warning.
 
+Fixed: a peer that disconnects mid-response no longer leaves a connection
+thread spinning at 100% CPU. nanoarrow's FILE output stream reports every
+write after a failed one as a successful zero-byte write, so the IPC write
+loop never ended (one spinning thread per abandoned connection on the
+socket and launcher transports, which also kept `--idle-timeout` from ever
+firing). The runtime now writes through its own FILE stream that fails on a
+short or zero write (EPIPE when the peer is gone), and
+`VgiRpcServerServeSocket` ignores SIGPIPE unless the application handles it.
+`tests/check_disconnect.py` covers it (the conformance worker gains
+`--idle-timeout`).
+
 Blob vendor (the hosted storage service; vgi docs/testing/blob-test-catalog.md).
 
 - `<vgi_rpc/vendor.h>`: a blob-vendor client ported from vgi-rpc-go's

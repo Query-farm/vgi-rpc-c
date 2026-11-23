@@ -411,11 +411,48 @@ static int reflection(void *state, struct VgiRpcCall *call, struct VgiRpcReply *
     return rc;
 }
 
+/* An IPC output stream over a FILE* that fails on a short or zero write.
+ * nanoarrow's ArrowIpcOutputStreamInitFile marks its stream finished after a
+ * failed fwrite and then reports every later write as a successful write of
+ * zero bytes, so ArrowIpcOutputStreamWrite's loop spins forever once a peer
+ * disconnects mid-response (a thread at 100% CPU per abandoned connection,
+ * which also kept the socket server's idle timeout from ever firing). */
+struct FileOutput {
+    FILE *file;
+};
+static ArrowErrorCode file_output_write(struct ArrowIpcOutputStream *stream, const void *buf,
+                                        int64_t size, int64_t *written, struct ArrowError *error) {
+    struct FileOutput *output = stream->private_data;
+    *written = 0;
+    if (size <= 0) return NANOARROW_OK;
+    errno = 0;
+    size_t n = fwrite(buf, 1, (size_t)size, output->file);
+    *written = (int64_t)n;
+    if (n == (size_t)size) return NANOARROW_OK;
+    int code = errno ? errno : EIO;
+    ArrowErrorSet(error, "IPC output write failed: %s",
+                  code == EPIPE ? "the peer closed the connection" : strerror(code));
+    return code == EPIPE ? EPIPE : EIO;
+}
+static void file_output_release(struct ArrowIpcOutputStream *stream) {
+    free(stream->private_data);
+    stream->private_data = NULL;
+    stream->release = NULL;
+}
+static int file_output_init(struct ArrowIpcOutputStream *stream, FILE *file) {
+    struct FileOutput *output = calloc(1, sizeof(*output));
+    if (!output) return ENOMEM;
+    output->file = file;
+    stream->write = file_output_write;
+    stream->release = file_output_release;
+    stream->private_data = output;
+    return 0;
+}
 static int write_batch(FILE *output, const struct VgiBatch *batch, const char *metadata,
                        struct VgiRpcCall *call, struct ArrowError *error, int use_shm) {
     struct ArrowIpcOutputStream target = {0};
     struct VgiIpcWriter writer = {0};
-    int rc = ArrowIpcOutputStreamInitFile(&target, output, 0);
+    int rc = file_output_init(&target, output);
     if (!rc) rc = VgiIpcWriterInit(&writer, &batch->schema, &target, error);
     if (!rc) rc = VgiRpcWriteLogs(call, &writer, &batch->schema, error);
     if (!rc) rc = VgiShmWrite(use_shm ? call->shm : NULL, &writer, &batch->array, metadata, error);
@@ -765,7 +802,7 @@ static int serve_stream(struct VgiRpcCall *call, struct VgiRpcReply *reply, FILE
     if (!rc) rc = ArrowIpcInputStreamInitFile(&source, input, 0);
     if (!rc) rc = VgiIpcReaderInit(&reader, &source);
     if (!rc) rc = VgiIpcReaderSchema(&reader, &incoming.schema, error);
-    if (!rc) rc = ArrowIpcOutputStreamInitFile(&target, output, 0);
+    if (!rc) rc = file_output_init(&target, output);
     if (!rc) rc = VgiIpcWriterInit(&writer, &stream->output_schema, &target, error);
     int finished = 0;
     while (!rc) {

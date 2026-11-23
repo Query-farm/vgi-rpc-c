@@ -7,6 +7,6 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .venv/
-/reference/
+/reference
 /site/
 /.venv-docs/

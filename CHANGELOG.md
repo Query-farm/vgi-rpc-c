@@ -57,6 +57,10 @@ Blob vendor (the hosted storage service; vgi docs/testing/blob-test-catalog.md).
   `/v1/info` (cached 10 minutes, kept through a vendor blip). Vendor calls
   retry transport errors, 429 and 5xx; the token never reaches a signed-URL
   request or an error message.
+- Raw blobs for callers that keep their own references (value-level storage
+  externalization): `VgiVendorPutBlob` (purpose `rpc` or `fs`, optional scope
+  and idempotency key), `VgiVendorGetBlob`, `VgiVendorDeleteBlobs`,
+  `VgiVendorDeleteScope`, and `VgiVendorFromEnv`.
 - `VgiExternalOptionsFromEnv` and `VgiHttpConfigureFromEnv` read
   `VGI_BLOB_VENDOR_URL`, `VGI_BLOB_VENDOR_TOKEN` (fallback `VGI_CF_DO_TOKEN`),
   `VGI_RPC_EXTERNALIZE_THRESHOLD_BYTES` (default 1 MiB),

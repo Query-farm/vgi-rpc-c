@@ -225,6 +225,34 @@ static void vendor_tests(void) {
     CHECK(external.get_object(external.storage_state, "0123456789abcdef0123456789abcdef", 1 << 20,
                               &out, &error) == ENOENT);
     ArrowBufferReset(&out);
+
+    /* Raw fs blobs with a scope and idempotency key (value externalization). */
+    struct VgiVendorScope scope = {"loc-anon", "s.0011"};
+    char *first = NULL, *second = NULL;
+    int64_t puts_fs = vstat("puts_fs");
+    CHECK(VgiVendorPutBlob(v, (struct ArrowBufferView){{payload}, sizeof(payload)}, "fs", &scope,
+                           "call.0", &first, &error) == 0);
+    CHECK(VgiVendorPutBlob(v, (struct ArrowBufferView){{payload}, sizeof(payload)}, "fs", &scope,
+                           "call.0", &second, &error) == 0);
+    CHECK(!strcmp(first, second) && vstat("puts_fs") - puts_fs == 2);
+    ArrowBufferInit(&out);
+    CHECK(VgiVendorGetBlob(v, first, 1 << 20, &out, &error) == 0);
+    CHECK(out.size_bytes == (int64_t)sizeof(payload) &&
+          !memcmp(out.data, payload, sizeof(payload)));
+    ArrowBufferReset(&out);
+    free(second);
+    second = NULL;
+    CHECK(VgiVendorPutBlob(v, (struct ArrowBufferView){{"other"}, 5}, "fs", &scope, NULL, &second,
+                           &error) == 0);
+    int64_t deleted = 0;
+    const char *ids[] = {second};
+    CHECK(VgiVendorDeleteBlobs(v, ids, 1, &deleted, &error) == 0 && deleted == 1);
+    CHECK(VgiVendorDeleteScope(v, &scope, &deleted, &error) == 0 && deleted >= 1);
+    ArrowBufferInit(&out);
+    CHECK(VgiVendorGetBlob(v, first, 1 << 20, &out, &error) == ENOENT);
+    ArrowBufferReset(&out);
+    free(first);
+    free(second);
     VgiVendorFree(v);
 
     /* A wrong token is refused by the vendor, never retried into success. */

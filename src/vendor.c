@@ -490,22 +490,41 @@ static int hex_to_b64(const char *sha256_hex, char out[48]) {
     sodium_bin2base64(out, 48, digest, sizeof(digest), sodium_base64_VARIANT_ORIGINAL);
     return 0;
 }
-/* POST /v1/blobs/put (purpose rpc) for one object of `size` bytes, with an
- * optional advisory origin. Fills upload/download URLs, required headers
- * (minus Content-Length, which must equal size), object id and expiry. */
-static int put_grant(struct VgiVendor *v, int64_t size, const char *sha256_hex, const char *origin,
-                     struct VgiExternalUploadUrl *out, struct ArrowError *error) {
+struct PutRequest {
+    const char *purpose; /* "rpc" (a download URL comes with the grant) or "fs" */
+    const char *origin;  /* advisory: client_upload, state_ref, or NULL */
+    const struct VgiVendorScope *scope;
+    const char *idempotency_key;
+};
+/* POST /v1/blobs/put for one object of `size` bytes. Fills upload (and, for
+ * rpc objects, download) URLs, required headers (minus Content-Length, which
+ * must equal size), object id and expiry. */
+static int put_grant(struct VgiVendor *v, int64_t size, const char *sha256_hex,
+                     const struct PutRequest *request, struct VgiExternalUploadUrl *out,
+                     struct ArrowError *error) {
     char digest[48];
     if (size < 1 || hex_to_b64(sha256_hex, digest)) {
         ArrowErrorSet(error, "blob vendor put needs a positive size and a 64-hex SHA-256");
         return EINVAL;
     }
+    int rpc = !strcmp(request->purpose, "rpc");
     struct json_object *payload = json_object_new_object(), *response = NULL;
     if (!payload) return ENOMEM;
     json_object_object_add(payload, "size", json_object_new_int64(size));
     json_object_object_add(payload, "sha256_b64", json_object_new_string(digest));
-    json_object_object_add(payload, "purpose", json_object_new_string("rpc"));
-    if (origin) json_object_object_add(payload, "origin", json_object_new_string(origin));
+    json_object_object_add(payload, "purpose", json_object_new_string(request->purpose));
+    if (request->origin)
+        json_object_object_add(payload, "origin", json_object_new_string(request->origin));
+    if (request->scope) {
+        struct json_object *scope = json_object_new_object();
+        json_object_object_add(scope, "shard", json_object_new_string(request->scope->shard));
+        json_object_object_add(scope, "execution_id",
+                               json_object_new_string(request->scope->execution_id));
+        json_object_object_add(payload, "scope", scope);
+    }
+    if (request->idempotency_key)
+        json_object_object_add(payload, "idempotency_key",
+                               json_object_new_string(request->idempotency_key));
     long status = 0;
     char code[64];
     int rc = api_call(v, "POST", "/v1/blobs/put", payload, "put", &response, &status, code, error);
@@ -522,7 +541,7 @@ static int put_grant(struct VgiVendor *v, int64_t size, const char *sha256_hex, 
     } else if (!object_id || !*object_id || !upload || !*upload) {
         ArrowErrorSet(error, "blob vendor put response is missing object_id or upload_url");
         rc = EIO;
-    } else if (!download || !*download) {
+    } else if (rpc && (!download || !*download)) {
         ArrowErrorSet(error, "blob vendor put response for an rpc object has no download_url");
         rc = EIO;
     } else if (!json_object_object_get_ex(response, "required_headers", &headers) ||
@@ -533,8 +552,9 @@ static int put_grant(struct VgiVendor *v, int64_t size, const char *sha256_hex, 
     if (!rc) {
         out->object_id = strdup(object_id);
         out->upload_url = strdup(upload);
-        out->download_url = strdup(download);
-        if (!out->object_id || !out->upload_url || !out->download_url) rc = ENOMEM;
+        out->download_url = download && *download ? strdup(download) : NULL;
+        if (!out->object_id || !out->upload_url || (download && *download && !out->download_url))
+            rc = ENOMEM;
     }
     if (!rc) {
         json_object_object_foreach(headers, name, value) {
@@ -569,25 +589,26 @@ static int put_grant(struct VgiVendor *v, int64_t size, const char *sha256_hex, 
     }
     json_object_put(response);
     if (!rc) rc = VgiVendorValidateUrl(v, out->upload_url, error);
-    if (!rc) rc = VgiVendorValidateUrl(v, out->download_url, error);
+    if (!rc && out->download_url) rc = VgiVendorValidateUrl(v, out->download_url, error);
     if (rc) VgiExternalUploadUrlReset(out);
     return rc;
 }
 static int allocate_result(void *state, int64_t size, const char *sha256_hex,
                            struct VgiExternalUploadUrl *out, struct ArrowError *error) {
-    return put_grant(state, size, sha256_hex, NULL, out, error);
+    const struct PutRequest request = {"rpc", NULL, NULL, NULL};
+    return put_grant(state, size, sha256_hex, &request, out, error);
 }
 static int allocate_client(void *state, int64_t size, const char *sha256_hex,
                            struct VgiExternalUploadUrl *out, struct ArrowError *error) {
-    return put_grant(state, size, sha256_hex, "client_upload", out, error);
+    const struct PutRequest request = {"rpc", "client_upload", NULL, NULL};
+    return put_grant(state, size, sha256_hex, &request, out, error);
 }
-static int put_object(void *state, struct ArrowBufferView data, char **object_id,
-                      struct ArrowError *error) {
-    struct VgiVendor *v = state;
+static int put_blob(struct VgiVendor *v, struct ArrowBufferView data,
+                    const struct PutRequest *request, char **object_id, struct ArrowError *error) {
     char sha256[65];
     struct VgiExternalUploadUrl grant = {0};
     int rc = VgiExternalSha256Hex(data.data.data, (size_t)data.size_bytes, sha256);
-    if (!rc) rc = put_grant(v, data.size_bytes, sha256, "state_ref", &grant, error);
+    if (!rc) rc = put_grant(v, data.size_bytes, sha256, request, &grant, error);
     struct ArrowBuffer response;
     ArrowBufferInit(&response);
     if (!rc)
@@ -600,6 +621,20 @@ static int put_object(void *state, struct ArrowBufferView data, char **object_id
     }
     VgiExternalUploadUrlReset(&grant);
     return rc;
+}
+static int put_object(void *state, struct ArrowBufferView data, char **object_id,
+                      struct ArrowError *error) {
+    const struct PutRequest request = {"rpc", "state_ref", NULL, NULL};
+    return put_blob(state, data, &request, object_id, error);
+}
+int VgiVendorPutBlob(struct VgiVendor *v, struct ArrowBufferView data, const char *purpose,
+                     const struct VgiVendorScope *scope, const char *idempotency_key,
+                     char **object_id, struct ArrowError *error) {
+    if (!v || !purpose || !object_id || data.size_bytes < 1) return EINVAL;
+    if (strcmp(purpose, "rpc") && strcmp(purpose, "fs")) return EINVAL;
+    if (scope && (!scope->shard || !scope->execution_id)) return EINVAL;
+    const struct PutRequest request = {purpose, NULL, scope, idempotency_key};
+    return put_blob(v, data, &request, object_id, error);
 }
 static int get_object(void *state, const char *object_id, int64_t max_bytes,
                       struct ArrowBuffer *out, struct ArrowError *error) {
@@ -651,6 +686,53 @@ static int get_object(void *state, const char *object_id, int64_t max_bytes,
     }
     free(download);
     return rc;
+}
+int VgiVendorGetBlob(struct VgiVendor *v, const char *object_id, int64_t max_bytes,
+                     struct ArrowBuffer *out, struct ArrowError *error) {
+    if (!v || !object_id || !out) return EINVAL;
+    return get_object(v, object_id, max_bytes, out, error);
+}
+static int delete_call(struct VgiVendor *v, const char *path, struct json_object *payload,
+                       int64_t *deleted, struct ArrowError *error) {
+    struct json_object *response = NULL, *count = NULL;
+    long status = 0;
+    char code[64];
+    int rc = api_call(v, "POST", path, payload, "delete", &response, &status, code, error);
+    json_object_put(payload);
+    if (!rc && deleted && json_object_object_get_ex(response, "deleted", &count))
+        *deleted = json_object_get_int64(count);
+    if (response) json_object_put(response);
+    return rc;
+}
+int VgiVendorDeleteBlobs(struct VgiVendor *v, const char *const *object_ids, size_t count,
+                         int64_t *deleted, struct ArrowError *error) {
+    if (!v || (count && !object_ids)) return EINVAL;
+    if (deleted) *deleted = 0;
+    for (size_t start = 0; start < count; start += 1000) {
+        struct json_object *payload = json_object_new_object(), *ids = json_object_new_array();
+        if (!payload || !ids) {
+            json_object_put(payload);
+            json_object_put(ids);
+            return ENOMEM;
+        }
+        for (size_t i = start; i < count && i < start + 1000; ++i)
+            json_object_array_add(ids, json_object_new_string(object_ids[i]));
+        json_object_object_add(payload, "object_ids", ids);
+        int64_t n = 0;
+        int rc = delete_call(v, "/v1/blobs/delete", payload, &n, error);
+        if (rc) return rc;
+        if (deleted) *deleted += n;
+    }
+    return 0;
+}
+int VgiVendorDeleteScope(struct VgiVendor *v, const struct VgiVendorScope *scope, int64_t *deleted,
+                         struct ArrowError *error) {
+    if (!v || !scope || !scope->shard || !scope->execution_id) return EINVAL;
+    struct json_object *payload = json_object_new_object();
+    if (!payload) return ENOMEM;
+    json_object_object_add(payload, "shard", json_object_new_string(scope->shard));
+    json_object_object_add(payload, "execution_id", json_object_new_string(scope->execution_id));
+    return delete_call(v, "/v1/blobs/delete_scope", payload, deleted, error);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -746,19 +828,34 @@ static int positive_env(const char *name, int64_t *out, struct ArrowError *error
     *out = value;
     return 0;
 }
-int VgiExternalOptionsFromEnv(struct VgiExternalOptions *external, struct VgiVendor **vendor,
-                              struct ArrowError *error) {
-    if (!external || !vendor) return EINVAL;
-    *vendor = NULL;
-    const char *url = getenv(VGI_BLOB_VENDOR_URL_ENV);
-    if (!url || !*url) return 0;
-    const char *token = getenv(VGI_BLOB_VENDOR_TOKEN_ENV);
-    if (!token || !*token) token = getenv(VGI_BLOB_VENDOR_TOKEN_FALLBACK_ENV);
-    if (!token || !*token) {
+static int env_url_token(const char **url, const char **token, struct ArrowError *error) {
+    *url = getenv(VGI_BLOB_VENDOR_URL_ENV);
+    *token = NULL;
+    if (!*url || !**url) return ENOENT;
+    *token = getenv(VGI_BLOB_VENDOR_TOKEN_ENV);
+    if (!*token || !**token) *token = getenv(VGI_BLOB_VENDOR_TOKEN_FALLBACK_ENV);
+    if (!*token || !**token) {
         ArrowErrorSet(error, "%s is set but neither %s nor %s is", VGI_BLOB_VENDOR_URL_ENV,
                       VGI_BLOB_VENDOR_TOKEN_ENV, VGI_BLOB_VENDOR_TOKEN_FALLBACK_ENV);
         return EINVAL;
     }
+    return 0;
+}
+int VgiVendorFromEnv(struct VgiVendor **vendor, struct ArrowError *error) {
+    if (!vendor) return EINVAL;
+    *vendor = NULL;
+    const char *url = NULL, *token = NULL;
+    int rc = env_url_token(&url, &token, error);
+    if (rc) return rc == ENOENT ? 0 : rc;
+    return VgiVendorNew(url, token, NULL, vendor, error);
+}
+int VgiExternalOptionsFromEnv(struct VgiExternalOptions *external, struct VgiVendor **vendor,
+                              struct ArrowError *error) {
+    if (!external || !vendor) return EINVAL;
+    *vendor = NULL;
+    const char *url = NULL, *token = NULL;
+    int env_rc = env_url_token(&url, &token, error);
+    if (env_rc) return env_rc == ENOENT ? 0 : env_rc;
     int64_t threshold = 0, fetch = 0, upload = 0;
     int rc = positive_env(VGI_RPC_EXTERNALIZE_THRESHOLD_ENV, &threshold, error);
     if (!rc) rc = positive_env(VGI_RPC_MAX_FETCH_BYTES_ENV, &fetch, error);

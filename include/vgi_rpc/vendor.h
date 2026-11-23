@@ -63,6 +63,37 @@ void VgiVendorFree(struct VgiVendor *);
 void VgiVendorBindExternal(struct VgiVendor *, struct VgiExternalOptions *);
 /* Validate one signed URL against the vendor's pinned hosts and prefixes. */
 int VgiVendorValidateUrl(struct VgiVendor *, const char *url, struct ArrowError *);
+/* A vendor from VGI_BLOB_VENDOR_URL and the token variables; *vendor is NULL
+ * (and 0 returned) when the URL is unset. */
+int VgiVendorFromEnv(struct VgiVendor **vendor, struct ArrowError *);
+
+/* Raw blobs, for callers that keep their own references (a worker's
+ * value-level storage externalization). Fields are 1-128 characters of
+ * [A-Za-z0-9._:-]. */
+struct VgiVendorScope {
+    const char *shard;
+    const char *execution_id;
+};
+/* Store `data` (at least one byte) as one object of purpose "rpc" or "fs":
+ * a sized, checksummed grant and a PUT with exactly its required headers, so
+ * storage verifies the body. scope and idempotency_key are optional; a
+ * repeated key with the same bytes returns the same object. *object_id is
+ * malloc-owned. */
+int VgiVendorPutBlob(struct VgiVendor *, struct ArrowBufferView data, const char *purpose,
+                     const struct VgiVendorScope *scope, const char *idempotency_key,
+                     char **object_id, struct ArrowError *);
+/* Fetch an object by id through a fresh, pinned download URL, capped at
+ * max_bytes (<= 0: 256 MiB; EFBIG above it). ENOENT when the vendor
+ * (not_found, not_uploaded) or storage (404) reports it gone. The caller
+ * verifies size and SHA-256 against its own reference. */
+int VgiVendorGetBlob(struct VgiVendor *, const char *object_id, int64_t max_bytes,
+                     struct ArrowBuffer *out, struct ArrowError *);
+/* Best-effort clean-up: /v1/blobs/delete (batched by 1,000) and
+ * /v1/blobs/delete_scope. deleted may be NULL. */
+int VgiVendorDeleteBlobs(struct VgiVendor *, const char *const *object_ids, size_t count,
+                         int64_t *deleted, struct ArrowError *);
+int VgiVendorDeleteScope(struct VgiVendor *, const struct VgiVendorScope *, int64_t *deleted,
+                         struct ArrowError *);
 
 /* External options from the environment. With VGI_BLOB_VENDOR_URL unset,
  * *vendor is NULL, *external is untouched and 0 is returned. Otherwise

@@ -166,3 +166,37 @@ the inner schema and complete IPC framing. Nested pointers and multiple data
 batches are rejected. Inner application metadata and log records are preserved.
 Storage signing/credentials belong to the allocator supplied by the application;
 there are no bundled S3/GCS credential-provider SDKs.
+
+### Blob vendor
+
+`<vgi_rpc/vendor.h>` connects a server to the blob vendor, the storage service
+that holds the object-store credentials so workers never do. Configure it
+from the environment before serving:
+
+```c
+struct VgiVendor *vendor = NULL;
+int rc = VgiHttpConfigureFromEnv(server, &options, &vendor, &error);
+if (!rc) rc = VgiRpcServerServeHttp(server, &options, &error);
+VgiVendorFree(vendor);
+```
+
+| Variable | Effect |
+|---|---|
+| `VGI_BLOB_VENDOR_URL` | The vendor's base URL (https; http only for a loopback host). Unset, nothing below applies except the request cap. |
+| `VGI_BLOB_VENDOR_TOKEN` | Bearer token for every `/v1` call (fallback `VGI_CF_DO_TOKEN`). Never sent to a signed URL. |
+| `VGI_RPC_EXTERNALIZE_THRESHOLD_BYTES` | Result batches at or above this size are uploaded and replaced by a pointer carrying `vgi_rpc.location.sha256` (default 1 MiB). |
+| `VGI_RPC_EXTERNAL_COMPRESSION` | `none` (default) or `zstd`. |
+| `VGI_RPC_MAX_REQUEST_BYTES` | The inline request cap, advertised as `VGI-Max-Request-Bytes`. |
+| `VGI_RPC_MAX_FETCH_BYTES` | Largest inbound pointer or object fetched (default 256 MiB, raised to the upload cap). |
+| `VGI_RPC_MAX_UPLOAD_BYTES` | Largest client upload granted, advertised as `VGI-Max-Upload-Bytes` (default: the fetch cap; refused above an explicit fetch cap). |
+
+With a vendor, `__upload_url__/init` grants come from sized `POST
+/v1/blobs/put` calls with the advisory origin `client_upload`; result uploads
+send no origin and stored objects send `state_ref`. `get_object` mints the
+download through `POST /v1/blobs/get`. Every signed URL must be on a host and
+under a prefix that `/v1/info` lists. Set a bucket lifecycle rule of at least
+one day on the `rpc` prefix: vgi-rpc never deletes vendor objects.
+
+An application protocol can add its own capability headers with
+`VgiHttpOptions.capability_header_names` / `capability_header_values`; they are
+sent on every response next to the runtime's own and exposed to CORS clients.

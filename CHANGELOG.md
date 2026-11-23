@@ -44,6 +44,34 @@ HTTP stream state in process, so it follows the single-replica rules (§5.4).
   600.
 - A `max_request_bytes` below 16384 logs a startup warning.
 
+Blob vendor (the hosted storage service; vgi docs/testing/blob-test-catalog.md).
+
+- `<vgi_rpc/vendor.h>`: a blob-vendor client ported from vgi-rpc-go's
+  `vendor.go`. `VgiVendorNew` takes the vendor URL (https; http only for a
+  loopback host) and bearer token; `VgiVendorBindExternal` makes it every
+  storage role of `VgiExternalOptions`: result externalization (`allocate`),
+  client upload grants (`allocate_client_upload`, advisory origin
+  `client_upload`), and the object store (`put_object`, origin `state_ref`;
+  `get_object` through `/v1/blobs/get`, where `not_found`, `not_uploaded` and a
+  storage 404 are `ENOENT`). Signed URLs are pinned to the hosts and prefixes of
+  `/v1/info` (cached 10 minutes, kept through a vendor blip). Vendor calls
+  retry transport errors, 429 and 5xx; the token never reaches a signed-URL
+  request or an error message.
+- `VgiExternalOptionsFromEnv` and `VgiHttpConfigureFromEnv` read
+  `VGI_BLOB_VENDOR_URL`, `VGI_BLOB_VENDOR_TOKEN` (fallback `VGI_CF_DO_TOKEN`),
+  `VGI_RPC_EXTERNALIZE_THRESHOLD_BYTES` (default 1 MiB),
+  `VGI_RPC_EXTERNAL_COMPRESSION`, `VGI_RPC_MAX_REQUEST_BYTES`, and the fix-1
+  caps `VGI_RPC_MAX_FETCH_BYTES` (default 256 MiB, raised to the upload cap)
+  and `VGI_RPC_MAX_UPLOAD_BYTES` (refused above an explicit fetch cap).
+- `VgiExternalOptions` gains `allocate_client_upload` (grants use it when set)
+  and `max_upload_bytes` (advertised as `VGI-Max-Upload-Bytes` and enforced at
+  `__upload_url__/init`; zero means `max_fetch_bytes`, and it can never exceed
+  it).
+- `VgiHttpOptions` gains `capability_header_names`, `capability_header_values`
+  and `capability_header_count`: application capability headers (vgi's
+  `VGI-Arguments-Ref-Bytes`) sent on every response and exposed to CORS
+  clients. Malformed names or values stop the server from starting.
+
 JWT verification and authentication before the body (for Orchard hosted mode
 in vgi-c).
 

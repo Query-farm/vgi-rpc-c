@@ -19,3 +19,11 @@ Declarations below are included directly from the public headers.
 ```c title="vgi_rpc/state_ref.h" linenums="1"
 --8<-- "include/vgi_rpc/state_ref.h"
 ```
+
+## Blob vendor
+
+[`vgi_rpc/vendor.h` on GitHub](https://github.com/Query-farm/vgi-rpc-c/blob/main/include/vgi_rpc/vendor.h)
+
+```c title="vgi_rpc/vendor.h" linenums="1"
+--8<-- "include/vgi_rpc/vendor.h"
+```

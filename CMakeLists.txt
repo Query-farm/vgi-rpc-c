@@ -57,7 +57,7 @@ else()
     pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=3.0)
     add_library(vgi_rpc ${VGI_RPC_COMMON_SOURCES} src/rpc.c src/socket.c
         src/credentials.c src/identity.c src/http.c src/proof.c src/session.c src/token.c
-        src/state_ref.c src/object_cache.c
+        src/state_ref.c src/object_cache.c src/vendor.c
         src/pool.c src/telemetry.c src/jwt.c)
 endif()
 add_library(vgi_rpc::vgi_rpc ALIAS vgi_rpc)
@@ -122,6 +122,12 @@ if(VGI_RPC_BUILD_TESTS AND NOT VGI_RPC_CLIENT_ONLY)
     target_link_libraries(vgi-rpc-state-ref-test PRIVATE vgi_rpc::vgi_rpc PkgConfig::SODIUM
         Threads::Threads)
     add_test(NAME state_ref COMMAND vgi-rpc-state-ref-test)
+    # Offline checks here; tests/check_vendor.py adds the fake-vendor round trips.
+    add_executable(vgi-rpc-vendor-test tests/vendor_test.c)
+    target_include_directories(vgi-rpc-vendor-test PRIVATE src)
+    target_link_libraries(vgi-rpc-vendor-test PRIVATE vgi_rpc::vgi_rpc PkgConfig::SODIUM
+        PkgConfig::JSONC)
+    add_test(NAME vendor COMMAND vgi-rpc-vendor-test)
     add_executable(vgi-rpc-jwt-test tests/jwt_test.c)
     target_include_directories(vgi-rpc-jwt-test PRIVATE src)
     target_link_libraries(vgi-rpc-jwt-test PRIVATE vgi_rpc::vgi_rpc PkgConfig::LIBCRYPTO

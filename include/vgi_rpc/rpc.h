@@ -8,6 +8,7 @@
 #include "vgi_rpc/method.h"
 #include "vgi_rpc/state_ref.h"
 #include "vgi_rpc/stream.h"
+#include "vgi_rpc/vendor.h"
 #include "vgi_rpc/telemetry.h"
 #ifdef __cplusplus
 extern "C" {

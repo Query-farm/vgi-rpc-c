@@ -40,6 +40,8 @@ jobs:
         run: |
           python tests/check_native_client.py
           python tests/check_shm_negotiation.py
+      - name: Blob-vendor client against the reference fake vendor
+        run: python tests/check_vendor.py
       - name: OpenTelemetry export and propagation
         run: python tests/check_telemetry.py
 

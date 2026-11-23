@@ -6,6 +6,7 @@
 #include "vgi_rpc/external.h"
 #include "vgi_rpc/generated/protocol.h"
 #include "vgi_rpc/method.h"
+#include "vgi_rpc/state_ref.h"
 #include "vgi_rpc/stream.h"
 #include "vgi_rpc/telemetry.h"
 #ifdef __cplusplus
@@ -53,6 +54,10 @@ struct VgiRpcCall {
     struct VgiSessionBinding *session_binding;
     /* Runtime-owned side channel; only present on local byte-stream calls. */
     struct VgiShm *shm;
+    /* Set by the runtime only while the protocol handler runs for a stream
+     * method, i.e. while it handles the stream's init request: the one place
+     * VgiRpcStateRef is allowed. Never set during next() or resume. */
+    int handling_stream_init;
 };
 
 /* A stream callback returns one batch, or sets finished to signal EOS.

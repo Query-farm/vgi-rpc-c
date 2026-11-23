@@ -57,6 +57,7 @@ else()
     pkg_check_modules(LIBCRYPTO REQUIRED IMPORTED_TARGET libcrypto>=3.0)
     add_library(vgi_rpc ${VGI_RPC_COMMON_SOURCES} src/rpc.c src/socket.c
         src/credentials.c src/identity.c src/http.c src/proof.c src/session.c src/token.c
+        src/state_ref.c src/object_cache.c
         src/pool.c src/telemetry.c src/jwt.c)
 endif()
 add_library(vgi_rpc::vgi_rpc ALIAS vgi_rpc)
@@ -116,6 +117,11 @@ if(VGI_RPC_BUILD_TESTS AND NOT VGI_RPC_CLIENT_ONLY)
     target_include_directories(vgi-rpc-security-test PRIVATE src)
     target_link_libraries(vgi-rpc-security-test PRIVATE vgi_rpc::vgi_rpc Threads::Threads)
     add_test(NAME security COMMAND vgi-rpc-security-test)
+    add_executable(vgi-rpc-state-ref-test tests/state_ref_test.c)
+    target_include_directories(vgi-rpc-state-ref-test PRIVATE src)
+    target_link_libraries(vgi-rpc-state-ref-test PRIVATE vgi_rpc::vgi_rpc PkgConfig::SODIUM
+        Threads::Threads)
+    add_test(NAME state_ref COMMAND vgi-rpc-state-ref-test)
     add_executable(vgi-rpc-jwt-test tests/jwt_test.c)
     target_include_directories(vgi-rpc-jwt-test PRIVATE src)
     target_link_libraries(vgi-rpc-jwt-test PRIVATE vgi_rpc::vgi_rpc PkgConfig::LIBCRYPTO

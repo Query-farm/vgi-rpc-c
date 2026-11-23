@@ -49,7 +49,13 @@ struct VgiHttpOptions {
     int64_t max_response_bytes;
     int64_t max_externalized_response_bytes;
     size_t max_streams;
+    /* Maximum stream duration, default 21600 (6 h, vgi-rpc STATE_REF_V1.md
+     * §12): call tokens and cursors older than this are refused, and an
+     * in-process stream is dropped once this old. */
     unsigned stream_ttl_seconds;
+    /* In-process streams with no turn for this long are dropped; default 600.
+     * Zero uses stream_ttl_seconds. */
+    unsigned stream_idle_seconds;
     /* Reject stream initializers without serialization/resume support. Streams
      * that support it are always stateless: no process-local call cache is used. */
     int require_stateless_streams;

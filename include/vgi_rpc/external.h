@@ -19,6 +19,12 @@ struct VgiExternalUploadUrl {
     int64_t expires_at_us;
     struct VgiExternalHeader *headers; /* malloc-owned array of malloc-owned strings */
     size_t header_count;
+    /* Storage id of the object the PUT creates (S3/GCS: the key; vendor: its
+     * object_id; fake storage: the blob id), at most 1024 bytes of UTF-8.
+     * Required for `__upload_url__` grants (protocol 3.4), which return it
+     * with a sealed argument reference; optional for the runtime's own
+     * response externalization. malloc-owned. */
+    char *object_id;
 };
 struct VgiExternalOptions {
     int64_t threshold_bytes;
@@ -39,6 +45,25 @@ struct VgiExternalOptions {
      * VgiExternalUploadUrlReset, including on failure. */
     int (*allocate)(void *, int64_t size, const char *sha256_hex, struct VgiExternalUploadUrl *,
                     struct ArrowError *);
+    /* The object store contract (vgi-rpc STATE_REF_V1.md §10.1). Both are
+     * optional; with get_object unset, argument references cannot be
+     * resolved (invalid_arguments_ref).
+     *
+     * put_object stores `data` as one rpc-purpose object, sending its size and
+     * SHA-256 so storage verifies the body, and returns the backend's
+     * malloc-owned object id (at most 1024 bytes). Objects carry no TTL:
+     * operators must set a bucket lifecycle rule of at least one day on the
+     * rpc prefix.
+     *
+     * get_object mints the download server-side from the id, applies the same
+     * URL validation as every other storage fetch, and stops at `max_bytes`
+     * (EFBIG). It returns ENOENT, distinguishable from every transient
+     * failure, when storage reports the object absent (404 / not_found).
+     * Callers verify size and SHA-256 themselves. out is empty on entry and
+     * left empty on failure. */
+    int (*put_object)(void *, struct ArrowBufferView data, char **object_id, struct ArrowError *);
+    int (*get_object)(void *, const char *object_id, int64_t max_bytes, struct ArrowBuffer *out,
+                      struct ArrowError *);
     void *storage_state;
 };
 struct VgiExternalRef {

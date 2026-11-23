@@ -32,6 +32,7 @@ void VgiExternalUploadUrlReset(struct VgiExternalUploadUrl *url) {
         free(url->headers[i].value);
     }
     free(url->headers);
+    free(url->object_id);
     memset(url, 0, sizeof(*url));
 }
 int VgiExternalUploadUrlAddHeader(struct VgiExternalUploadUrl *url, const char *name,
@@ -234,7 +235,10 @@ int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, cons
             } else if (!(next = strdup(redirect)))
                 rc = ENOMEM;
         } else if (status < 200 || status >= 300) {
-            rc = EIO;
+            /* 404 is the one status callers must tell apart: the object store
+             * contract reports a missing object distinctly from transient
+             * failures. */
+            rc = status == 404 ? ENOENT : EIO;
             char code[64];
             storage_error_code(&download.body, code, sizeof(code));
             if (!strcmp(method, "PUT"))

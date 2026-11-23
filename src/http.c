@@ -30,6 +30,7 @@
 #include "rpc_internal.h"
 #include "session.h"
 #include "shm_internal.h"
+#include "state_ref_internal.h"
 #include "telemetry_internal.h"
 #include "token.h"
 
@@ -47,7 +48,7 @@ struct HttpStream {
     char *token;
     int stateless;
     int64_t response_limit;
-    time_t touched;
+    time_t touched, created;
     struct HttpStream *next;
 };
 struct HttpServer {
@@ -488,7 +489,7 @@ static struct HttpStream *stream_new(struct HttpTask *task) {
         s->call.signing_key = task->server->key;
     memcpy(s->call.request_id, task->id, sizeof(task->id));
     s->response_limit = task->server->options.max_response_bytes;
-    s->touched = time(NULL);
+    s->touched = s->created = time(NULL);
     return s;
 }
 static void remove_stream(struct HttpServer *server, struct HttpStream *stream) {
@@ -511,7 +512,10 @@ void VgiHttpOptionsInit(struct VgiHttpOptions *options) {
     options->max_response_bytes = 256 * 1024 * 1024;
     options->max_externalized_response_bytes = 1024 * 1024 * 1024;
     options->max_streams = 4096;
-    options->stream_ttl_seconds = 300;
+    /* Maximum stream duration (vgi-rpc STATE_REF_V1.md §12): the age bound
+     * on call tokens and cursors, checked from each one's created_at. */
+    options->stream_ttl_seconds = 21600;
+    options->stream_idle_seconds = 600;
     options->max_concurrent_requests = 64;
     options->sticky_ttl_seconds = 300;
     options->max_sessions = 4096;
@@ -827,9 +831,14 @@ static int append_output(struct HttpTask *task, const struct VgiBatch *batch, co
     VgiIpcWriterReset(&writer);
     return rc;
 }
+static int invalid_state(const struct VgiRpcCall *call) {
+    return call->error_kind && !strcmp(call->error_kind, VGI_RPC_KIND_INVALID_STATE_REF);
+}
 static int write_failure(struct HttpTask *task, struct VgiRpcCall *call,
                          const struct ArrowSchema *schema) {
     task->rpc_error = 1;
+    /* An unreadable StateRef is answered like any token failure. */
+    if (invalid_state(call) && task->status < 400) task->status = 400;
     VgiTraceError(task->trace, call->error_type);
     if (task->log && call->error_type) {
         json_object_object_add(task->log, "error_type", json_object_new_string(call->error_type));
@@ -1090,6 +1099,7 @@ static int turn(struct HttpTask *task, struct HttpStream *stream, const struct V
     if (rc && writer.writer.private_data) {
         task->rpc_error = 1;
         *finished = 1;
+        if (invalid_state(call) && task->status < 400) task->status = 400;
         ArrowBufferReset(&metadata);
         int error_rc = VgiRpcErrorMetadata(call, &metadata);
         if (!error_rc)
@@ -1218,14 +1228,17 @@ static int upload_urls(struct HttpTask *task, struct HttpStream *stream) {
     }
     struct ArrowSchema schema = {0};
     ArrowSchemaInit(&schema);
-    int rc = ArrowSchemaSetTypeStruct(&schema, 4);
-    const char *names[] = {"upload_url", "download_url", "expires_at", "upload_headers"};
-    const char *formats[] = {"u", "u", "tsu:UTC"};
-    for (int i = 0; !rc && i < 4; ++i) {
+    /* Protocol 3.4 appends object_id and ref (STATE_REF_V1.md §10.2) after
+     * the four v2 columns, which clients read by name. */
+    int rc = ArrowSchemaSetTypeStruct(&schema, 6);
+    const char *names[] = {"upload_url",     "download_url", "expires_at",
+                           "upload_headers", "object_id",    "ref"};
+    const char *formats[] = {"u", "u", "tsu:UTC", NULL, "u", "z"};
+    for (int i = 0; !rc && i < 6; ++i) {
         rc = ArrowSchemaSetName(schema.children[i], names[i]);
         if (!rc)
-            rc = i < 3 ? ArrowSchemaSetFormat(schema.children[i], formats[i])
-                       : ArrowSchemaSetType(schema.children[i], NANOARROW_TYPE_MAP);
+            rc = formats[i] ? ArrowSchemaSetFormat(schema.children[i], formats[i])
+                            : ArrowSchemaSetType(schema.children[i], NANOARROW_TYPE_MAP);
         if (!rc) schema.children[i]->flags &= ~ARROW_FLAG_NULLABLE;
     }
     if (!rc)
@@ -1246,6 +1259,19 @@ static int upload_urls(struct HttpTask *task, struct HttpStream *stream) {
                                 ArrowArrayViewGetIntUnsafe(sizes, first + i), sha256, &url,
                                 &call->error);
         if (!rc && (!url.upload_url || !url.download_url)) rc = EINVAL;
+        struct ArrowBuffer ref;
+        ArrowBufferInit(&ref);
+        if (!rc && (!url.object_id || !*url.object_id || strlen(url.object_id) > 1024)) {
+            ArrowErrorSet(&call->error, "the provider returned no object_id for the grant");
+            rc = EINVAL;
+        }
+        /* The reference is bound to this request's principal: the grant is
+         * authenticated exactly like a protocol method, so the same client
+         * opens it again on its bind. */
+        if (!rc)
+            rc = VgiArgumentRefMint(call->sealing_key, call->auth_domain, call->principal,
+                                    ArrowArrayViewGetIntUnsafe(sizes, first + i), sha256,
+                                    url.object_id, &ref);
         if (rc) {
             task->status = 500;
             if (!call->error_type) {
@@ -1270,7 +1296,13 @@ static int upload_urls(struct HttpTask *task, struct HttpStream *stream) {
             if (!rc) rc = ArrowArrayFinishElement(headers->children[0]);
         }
         if (!rc) rc = ArrowArrayFinishElement(headers);
+        if (!rc)
+            rc = ArrowArrayAppendString(result.array.children[4], ArrowCharView(url.object_id));
+        if (!rc)
+            rc = ArrowArrayAppendBytes(result.array.children[5],
+                                       (struct ArrowBufferView){{ref.data}, ref.size_bytes});
         if (!rc) rc = ArrowArrayFinishElement(&result.array);
+        ArrowBufferReset(&ref);
         VgiExternalUploadUrlReset(&url);
     }
     if (!rc) rc = VgiBatchFinish(&result, &call->error);
@@ -2034,12 +2066,15 @@ static void sweep(evutil_socket_t fd, short events, void *opaque) {
     (void)events;
     struct HttpServer *server = opaque;
     time_t now = time(NULL);
+    time_t ttl = (time_t)server->options.stream_ttl_seconds,
+           idle = server->options.stream_idle_seconds ? (time_t)server->options.stream_idle_seconds
+                                                      : ttl;
     VgiSessionsSweep(server->sessions);
     pthread_mutex_lock(&server->mutex);
     struct HttpStream *s = server->streams;
     while (s) {
         struct HttpStream *next = s->next;
-        if (now - s->touched > (time_t)server->options.stream_ttl_seconds) remove_stream(server, s);
+        if (now - s->touched > idle || now - s->created > ttl) remove_stream(server, s);
         s = next;
     }
     pthread_mutex_unlock(&server->mutex);
@@ -2073,6 +2108,16 @@ int VgiRpcServerServeHttp(struct VgiRpcServer *rpc, const struct VgiHttpOptions 
         ArrowErrorSet(error, "Invalid grant key configuration");
         return EINVAL;
     }
+    int cache_rc = VgiObjectCacheConfigure(error);
+    if (cache_rc) return cache_rc;
+    /* The turn budget's floor (STATE_REF_V1.md §9): conformance and test
+     * servers deliberately run tiny caps, so warn rather than refuse. This
+     * single-replica runtime has no cursor rule to disable (§5.4). */
+    if (options->max_request_bytes < 16384)
+        fprintf(stderr,
+                "vgi-rpc-c: max_request_bytes (%lld) is below 16384: the cursor rule is disabled "
+                "and stream continuations may not fit\n",
+                (long long)options->max_request_bytes);
     struct VgiIdentityOptions identity =
         options->identity ? *options->identity : (struct VgiIdentityOptions){0};
     if (keys) identity.grant_keys = keys;

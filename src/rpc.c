@@ -728,7 +728,10 @@ int VgiRpcInvoke(struct VgiRpcCall *call, struct VgiRpcReply *reply) {
             ? &self
             : find_protocol(call->server, call->protocol ? call->protocol : "");
     if (!protocol || !call->method) return EINVAL;
-    return protocol->handler(protocol->state, call, reply);
+    call->handling_stream_init = call->method->kind == VGI_METHOD_STREAM;
+    int rc = protocol->handler(protocol->state, call, reply);
+    call->handling_stream_init = 0;
+    return rc;
 }
 int VgiRpcCanResume(struct VgiRpcCall *call) {
     const struct VgiRpcProtocol *p = find_protocol(call->server, call->protocol);

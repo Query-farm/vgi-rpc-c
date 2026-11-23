@@ -27,31 +27,96 @@ static int aad_init(const struct VgiTokenContext *c, struct ArrowBuffer *aad) {
     }
     return rc;
 }
+int VgiTokenCodecEncode(struct ArrowBufferView input, struct ArrowBuffer *out) {
+    if (!out || input.size_bytes < 0) return EINVAL;
+    struct ArrowBuffer compressed;
+    ArrowBufferInit(&compressed);
+    int rc = input.size_bytes ? VgiHttpEncode("zstd", input, &compressed) : 0;
+    uint8_t codec = !rc && compressed.size_bytes && compressed.size_bytes < input.size_bytes
+                        ? VGI_TOKEN_CODEC_ZSTD
+                        : VGI_TOKEN_CODEC_RAW;
+    /* A compressor failure only costs the saving; raw is always valid. */
+    rc = ArrowBufferAppend(out, &codec, 1);
+    if (!rc)
+        rc = ArrowBufferAppend(out, codec ? compressed.data : input.data.as_uint8,
+                               codec ? compressed.size_bytes : input.size_bytes);
+    ArrowBufferReset(&compressed);
+    return rc;
+}
+int VgiTokenCodecDecode(struct ArrowBufferView input, int64_t limit, struct ArrowBuffer *out) {
+    if (!out || out->size_bytes || input.size_bytes < 1 || limit < 0) return EINVAL;
+    struct ArrowBufferView body = {{input.data.as_uint8 + 1}, input.size_bytes - 1};
+    int rc;
+    switch (input.data.as_uint8[0]) {
+        case VGI_TOKEN_CODEC_RAW:
+            rc = VgiHttpDecode("identity", body, limit, out);
+            break;
+        case VGI_TOKEN_CODEC_ZSTD:
+            rc = VgiHttpDecode("zstd", body, limit, out);
+            break;
+        default:
+            /* Reserved and unknown tags, DEFLATE included: this writer never
+             * emits them, so they are refused rather than guessed at. */
+            rc = EINVAL;
+    }
+    if (rc) ArrowBufferReset(out);
+    return rc;
+}
+int VgiTokenSealRaw(const struct VgiTokenContext *c, struct ArrowBufferView input,
+                    struct ArrowBuffer *out) {
+    if (!c || !c->key || !out || out->size_bytes || input.size_bytes < 0 ||
+        input.size_bytes > VGI_TOKEN_MAX_BYTES + 1)
+        return EINVAL;
+    struct ArrowBuffer aad;
+    ArrowBufferInit(&aad);
+    int rc = aad_init(c, &aad);
+    if (!rc) rc = ArrowBufferResize(out, 25 + input.size_bytes + 16, 0);
+    if (!rc) {
+        out->data[0] = 1;
+        randombytes_buf(out->data + 1, 24);
+        unsigned long long n;
+        rc = crypto_aead_xchacha20poly1305_ietf_encrypt(
+            out->data + 25, &n, input.data.as_uint8, (unsigned long long)input.size_bytes, aad.data,
+            (unsigned long long)aad.size_bytes, NULL, out->data + 1, c->key);
+    }
+    if (rc) ArrowBufferReset(out);
+    ArrowBufferReset(&aad);
+    return rc;
+}
+int VgiTokenOpenRaw(const struct VgiTokenContext *c, struct ArrowBufferView input,
+                    struct ArrowBuffer *out) {
+    if (!c || !c->key || !out || out->size_bytes || input.size_bytes < 0) return EINVAL;
+    if (input.size_bytes < 42 || input.data.as_uint8[0] != 1) return EINVAL;
+    struct ArrowBuffer aad;
+    ArrowBufferInit(&aad);
+    int rc = aad_init(c, &aad);
+    if (!rc) rc = ArrowBufferResize(out, input.size_bytes - 41, 0);
+    unsigned long long length = 0;
+    if (!rc && crypto_aead_xchacha20poly1305_ietf_decrypt(
+                   out->data, &length, NULL, input.data.as_uint8 + 25,
+                   (unsigned long long)input.size_bytes - 25, aad.data,
+                   (unsigned long long)aad.size_bytes, input.data.as_uint8 + 1, c->key))
+        rc = EINVAL;
+    if (!rc)
+        out->size_bytes = (int64_t)length;
+    else {
+        sodium_memzero(out->data, (size_t)out->size_bytes);
+        ArrowBufferReset(out);
+    }
+    ArrowBufferReset(&aad);
+    return rc;
+}
 int VgiTokenSeal(const struct VgiTokenContext *c, struct ArrowBufferView input, char **out) {
     if (!c || !c->key || !out || *out || input.size_bytes < 0 ||
         input.size_bytes > VGI_TOKEN_MAX_BYTES)
         return EINVAL;
-    struct ArrowBuffer aad, compressed, plain, envelope;
-    ArrowBufferInit(&aad);
-    ArrowBufferInit(&compressed);
+    struct ArrowBuffer plain, envelope;
     ArrowBufferInit(&plain);
     ArrowBufferInit(&envelope);
-    int rc = aad_init(c, &aad);
-    if (!rc && input.size_bytes >= 512) rc = VgiHttpEncode("zstd", input, &compressed);
-    uint8_t codec = compressed.size_bytes && compressed.size_bytes < input.size_bytes ? 1 : 0;
-    if (!rc) rc = ArrowBufferAppend(&plain, &codec, 1);
+    int rc = VgiTokenCodecEncode(input, &plain);
     if (!rc)
-        rc = ArrowBufferAppend(&plain, codec ? compressed.data : input.data.as_uint8,
-                               codec ? compressed.size_bytes : input.size_bytes);
-    if (!rc) rc = ArrowBufferResize(&envelope, 25 + plain.size_bytes + 16, 0);
-    if (!rc) {
-        envelope.data[0] = 1;
-        randombytes_buf(envelope.data + 1, 24);
-        unsigned long long n;
-        rc = crypto_aead_xchacha20poly1305_ietf_encrypt(
-            envelope.data + 25, &n, plain.data, (unsigned long long)plain.size_bytes, aad.data,
-            (unsigned long long)aad.size_bytes, NULL, envelope.data + 1, c->key);
-    }
+        rc =
+            VgiTokenSealRaw(c, (struct ArrowBufferView){{plain.data}, plain.size_bytes}, &envelope);
     if (!rc) {
         size_t n = sodium_base64_ENCODED_LEN((size_t)envelope.size_bytes,
                                              sodium_base64_VARIANT_URLSAFE_NO_PADDING);
@@ -63,8 +128,6 @@ int VgiTokenSeal(const struct VgiTokenContext *c, struct ArrowBufferView input, 
                               sodium_base64_VARIANT_URLSAFE_NO_PADDING);
     }
     sodium_memzero(plain.data, (size_t)plain.size_bytes);
-    ArrowBufferReset(&aad);
-    ArrowBufferReset(&compressed);
     ArrowBufferReset(&plain);
     ArrowBufferReset(&envelope);
     return rc;
@@ -74,32 +137,23 @@ int VgiTokenOpen(const struct VgiTokenContext *c, struct ArrowStringView input,
     if (!c || !c->key || !out || out->size_bytes || input.size_bytes < 56 ||
         input.size_bytes > (VGI_TOKEN_MAX_BYTES + 64LL) * 4 / 3)
         return EINVAL;
-    struct ArrowBuffer aad, envelope, plain;
-    ArrowBufferInit(&aad);
+    struct ArrowBuffer envelope, plain;
     ArrowBufferInit(&envelope);
     ArrowBufferInit(&plain);
-    int rc = aad_init(c, &aad);
-    if (!rc) rc = ArrowBufferResize(&envelope, input.size_bytes, 0);
+    int rc = ArrowBufferResize(&envelope, input.size_bytes, 0);
     size_t n = 0;
     if (!rc && sodium_base642bin(envelope.data, (size_t)envelope.size_bytes, input.data,
                                  (size_t)input.size_bytes, NULL, &n, NULL,
                                  sodium_base64_VARIANT_URLSAFE_NO_PADDING))
         rc = EINVAL;
-    if (!rc && (n < 42 || envelope.data[0] != 1)) rc = EINVAL;
-    if (!rc) rc = ArrowBufferResize(&plain, (int64_t)n - 41, 0);
-    unsigned long long length = 0;
-    if (!rc && crypto_aead_xchacha20poly1305_ietf_decrypt(
-                   plain.data, &length, NULL, envelope.data + 25, n - 25, aad.data,
-                   (unsigned long long)aad.size_bytes, envelope.data + 1, c->key))
-        rc = EINVAL;
-    if (!rc && (!length || plain.data[0] > 1)) rc = EINVAL;
+    if (!rc) rc = VgiTokenOpenRaw(c, (struct ArrowBufferView){{envelope.data}, (int64_t)n}, &plain);
+    /* Codec tags follow the standard: an unknown tag or an undecodable body is
+     * the same uniform failure as a bad seal. */
     if (!rc)
-        rc = VgiHttpDecode(plain.data[0] ? "zstd" : "identity",
-                           (struct ArrowBufferView){{plain.data + 1}, (int64_t)length - 1},
-                           VGI_TOKEN_MAX_BYTES, out);
+        rc = VgiTokenCodecDecode((struct ArrowBufferView){{plain.data}, plain.size_bytes},
+                                 VGI_TOKEN_MAX_BYTES, out);
     if (rc) ArrowBufferReset(out);
     sodium_memzero(plain.data, (size_t)plain.size_bytes);
-    ArrowBufferReset(&aad);
     ArrowBufferReset(&envelope);
     ArrowBufferReset(&plain);
     return rc;

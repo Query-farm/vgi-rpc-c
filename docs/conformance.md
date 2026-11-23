@@ -42,8 +42,14 @@ Build the worker and client driver with the default CMake options. Use a Python
 ctest --test-dir build --output-on-failure
 ```
 
-`test_conformance.py` runs server and native-client roles and fails if either
-skips a test. Client-role deselection is deliberate: raw HTTP probes of a server
+`test_conformance.py` runs server and native-client roles and fails on any skip
+outside its `EXPECTED_SKIP_REASONS`, and on any listed skip that ran instead.
+That list holds the nine protocol 3.4 `StateRef` cases (stored round trip,
+cross-replica resolve, foreign and tampered tags, codec bytes, tag expiry and
+the four cursor-rule cases) that need serialized stream state. This runtime
+keeps HTTP stream state in process, so they skip with the reference's
+`SINGLE_REPLICA_SKIP_REASON` (`STATE_REF_V1.md` §5.4). The object cache and
+argument-reference cases run in full. Client-role deselection is deliberate: raw HTTP probes of a server
 must not be counted as proof of a client's behavior. Its JSONL driver obeys the
 [canonical driver contract](https://github.com/Query-farm/vgi-rpc-python/blob/main/tools/cross-port/specs/CLIENT_DRIVER_PROTOCOL.md):
 transport handling, continuations, fetching, error decoding, and logs all live

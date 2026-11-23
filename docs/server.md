@@ -52,6 +52,32 @@ Without serialization/resume callbacks, HTTP retains stream objects in a bounded
 process-local table. That mode requires requests to return to the same process.
 Byte-stream transports naturally retain stream state on their live connection.
 
+### Stream-state references (protocol 3.4)
+
+`<vgi_rpc/state_ref.h>` is the C shape of vgi-rpc's `StateRef`
+(`STATE_REF_V1.md`): `VgiRpcStateRef(call, value, &ref)` wraps bytes the stream
+will not change, and `VgiRpcStateRefResolve(call, ref, &view)` reads them back
+on any turn. Create refs only in the stream method's own handler, while it
+handles the init request; on any later turn, including the first producer turn,
+`VgiRpcStateRef` fails with `state_ref_misuse` (`FAILED_PRECONDITION`). Keep the
+ref in the stream state and copy it between turns.
+
+This runtime keeps HTTP stream state in process for protocol 3.4
+(`STATE_REF_V1.md` §5.4), so a ref is held in memory on every transport and is
+never stored, sealed per turn or fetched. Worker code stays portable to the
+runtimes that serialize state. `VgiStateRefEncode` and `VgiRpcStateRefDecode`
+handle the inline wire form (`0x01 || codec || body`). A presented stored-form
+ref, an unknown form byte or a bad codec is `invalid_state_ref`, answered with
+HTTP 400.
+
+The stateless mode above predates `StateRef`. Its call token carries the whole
+original request, so a large request is echoed on every continuation. Against a
+request cap, the turn budget, `floor((max_request_bytes - 4096) / 1.34)` minus
+the call token's sealed size, is what is left for the cursor. A
+multi-megabyte request leaves no budget, and its continuations exceed the cap.
+VGI workers do not use this mode in 3.4. When a stateless mode is adopted, it
+must carry large values as `StateRef`s rather than in the call token.
+
 ## Ownership
 
 Zero-initialize Arrow schemas, arrays, streams, `VgiBatch`, replies, and

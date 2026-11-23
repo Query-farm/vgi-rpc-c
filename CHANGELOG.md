@@ -19,6 +19,31 @@ Upload URL protocol v2 (wire-incompatible; pairs with vgi protocol 3.4.0).
 - Request pointers without `vgi_rpc.location.sha256` are refused; a digest
   mismatch reports `sha256 mismatch`.
 
+Large values (vgi-rpc `STATE_REF_V1.md`, protocol 3.4). This runtime keeps
+HTTP stream state in process, so it follows the single-replica rules (§5.4).
+
+- `<vgi_rpc/state_ref.h>`: `VgiRpcStateRef` / `VgiRpcStateRefResolve`, held
+  in memory on every transport. A ref created outside a stream's init handler
+  is `state_ref_misuse`. Inline encode and decode are provided, and a presented
+  stored, unknown or badly coded ref is `invalid_state_ref` (HTTP 400).
+  `VgiRpcCall.handling_stream_init` marks the init handler.
+- `__upload_url__/init` rows gain `object_id` and `ref`, a sealed argument
+  reference bound to the grant's principal. `VgiExternalUploadUrl.object_id`
+  is required for grants. `VgiRpcResolveArgumentRef` and
+  `VgiRpcResolveArgumentsLocation` resolve references through the object
+  cache.
+- `VgiExternalOptions` gains `put_object` and `get_object`, the object store
+  contract. External fetches now report HTTP 404 as `ENOENT`.
+- A process-wide object cache: keyed by object id, single-flight, bounded by
+  `VGI_RPC_OBJECT_CACHE_BYTES`, with a one-day age rule
+  (`VgiObjectCacheGetStats`, `VgiObjectCacheAge`).
+- The token codec follows the standard: `0x00` raw, `0x01` zstd (whenever it
+  is smaller), and every other tag refused, explicitly on every reader.
+- `stream_ttl_seconds` defaults to 21600 (6 h maximum stream duration). Idle
+  in-process streams are evicted after the new `stream_idle_seconds`, default
+  600.
+- A `max_request_bytes` below 16384 logs a startup warning.
+
 JWT verification and authentication before the body (for Orchard hosted mode
 in vgi-c).
 

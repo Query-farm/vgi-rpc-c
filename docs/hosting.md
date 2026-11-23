@@ -13,7 +13,9 @@ at the configured prefix.
 | Response wire limit | 256 MiB |
 | Externalized response limit | 1 GiB |
 | Retained streams / sticky sessions | 4,096 each |
-| Stream / sticky-session TTL | 300 seconds |
+| Maximum stream duration (`stream_ttl_seconds`) | 21,600 seconds (6 h) |
+| Idle in-process stream eviction (`stream_idle_seconds`) | 600 seconds |
+| Sticky-session TTL | 300 seconds |
 | Concurrent HTTP requests | 64 |
 | Compression | Enabled |
 
@@ -120,6 +122,39 @@ sha256: utf8>>` (1-100 entries) and answers one row per entry with
 (`map<utf8, utf8>`). The retired `count` shape, empty or oversized lists,
 `size < 1`, malformed digests, and sizes above `VGI-Max-Upload-Bytes` are
 refused with HTTP 400 before any URL is minted.
+`VGI-Max-Upload-Bytes` is always `max_fetch_bytes`, so a client can never be
+granted an upload that this server could not fetch back.
+
+Protocol 3.4 appends two columns to every grant row: `object_id` (`utf8`), the
+storage id the PUT creates, and `ref` (`binary`), a sealed argument reference.
+The allocator must set `VgiExternalUploadUrl.object_id`; a grant without one is
+refused. The reference is bound to the grant request's principal. The upload
+endpoint authenticates exactly as the protocol methods do, so the same client
+can present the reference again. `VgiRpcResolveArgumentRef` (or
+`VgiRpcResolveArgumentsLocation` for a `struct<ref, size, sha256>` column)
+opens it, checks the claimed size and SHA-256, fetches through the object
+cache, and verifies the bytes. It fails with `invalid_arguments_ref`,
+`arguments_ref_integrity`, `arguments_ref_missing` or `storage_unavailable`.
+On an unauthenticated server a reference is a bearer capability until bucket
+lifecycle deletes the object.
+
+The object store contract adds two optional callbacks to `VgiExternalOptions`.
+`put_object` stores one object and returns its id. `get_object` fetches by id,
+capped at `max_bytes`, and returns `ENOENT` when the object is missing.
+Objects carry no TTL: set a bucket lifecycle rule of at least one day on the
+`rpc` prefix.
+
+One process-wide object cache, keyed by object id and never by a digest, serves
+every resolution. It is single-flight and byte-bounded by
+`VGI_RPC_OBJECT_CACHE_BYTES`, which defaults to the smaller of 1 GiB and 40% of
+the cgroup or physical memory; `0` retains nothing. Entries fetched more than a
+day ago count as misses. A malformed `VGI_RPC_OBJECT_CACHE_BYTES` stops
+`VgiRpcServerServeHttp` from starting.
+`VgiObjectCacheGetStats` reports resident bytes, hits, misses, evictions and
+fetches.
+
+A `max_request_bytes` below 16 KiB is accepted with a startup warning on
+stderr, because test servers deliberately use small caps.
 Pre-published references can be returned on every transport. Automatic output
 threshold externalization is currently an HTTP server feature; raw workers can
 return pre-published references explicitly.

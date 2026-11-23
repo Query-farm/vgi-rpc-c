@@ -3,7 +3,7 @@
 All notable changes to `vgi-rpc-c` are listed here. The API may change between
 0.x minor releases.
 
-## [Unreleased]
+## [0.2.0] — 2026-11-23
 
 Upload URL protocol v2 (wire-incompatible; pairs with vgi protocol 3.4.0).
 

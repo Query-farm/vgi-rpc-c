@@ -73,7 +73,7 @@ construct the asynchronous OTLP exporter; `VgiTelemetryNew()` returns
 `ENOTSUP`. Applications that need the exporter should use the full runtime on a
 supported POSIX platform.
 
-Consumers use `find_package(vgi_rpc 0.1 CONFIG REQUIRED)` and link
+Consumers use `find_package(vgi_rpc 0.2 CONFIG REQUIRED)` and link
 `vgi_rpc::vgi_rpc`. Set `CMAKE_PREFIX_PATH` when installing to a custom prefix.
 The installation includes nanoarrow's package and public headers. An embedded
 build can instead use `add_subdirectory(/path/to/vgi-rpc-c rpc)`.

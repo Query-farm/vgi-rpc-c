@@ -113,7 +113,7 @@ cmake --install build --prefix "$HOME/.local"
 ```
 
 ```cmake
-find_package(vgi_rpc 0.1 CONFIG REQUIRED)
+find_package(vgi_rpc 0.2 CONFIG REQUIRED)
 add_executable(my_client main.c)
 target_link_libraries(my_client PRIVATE vgi_rpc::vgi_rpc)
 ```

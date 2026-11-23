@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the canonical suite; skipped tests fail the gate."""
+"""Run the canonical suite; skips outside EXPECTED_SKIP_REASONS fail the gate."""
 
 from __future__ import annotations
 
@@ -10,6 +10,45 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+#: The single-replica skips of vgi-rpc STATE_REF_V1.md §5.4: this port keeps HTTP
+#: stream state in process, so its StateRefs are in-memory and inline only.
+SINGLE_REPLICA = (
+    "single-replica SDK: HTTP stream state is never serialized, so StateRefs are in-memory and inline only "
+    "(STATE_REF_V1.md §5.4)"
+)
+#: Server-role skips the gate accepts, by ``Class::test``.  Every entry must skip
+#: (a stale entry would hide coverage) and nothing else may.
+EXPECTED_SKIP_REASONS = {
+    "TestStateRef::test_stored_round_trip": SINGLE_REPLICA,
+    "TestStateRef::test_cross_replica_resolve": SINGLE_REPLICA,
+    "TestStateRef::test_foreign_and_tampered_tags_are_refused": SINGLE_REPLICA,
+    "TestStateRef::test_codec": SINGLE_REPLICA,
+    "TestStateRef::test_expired_tag_is_refused_before_any_get": SINGLE_REPLICA,
+    "TestCursorBudget::test_warn_rule_warns_and_continues": SINGLE_REPLICA,
+    "TestCursorBudget::test_error_rule_refuses": SINGLE_REPLICA,
+    "TestCursorBudget::test_no_error_without_a_request_cap": SINGLE_REPLICA,
+    "TestCursorBudget::test_below_the_floor_the_rule_is_off": SINGLE_REPLICA,
+}
+
+
+def check_skips(role: str, report: Path) -> None:
+    """Fail on any skip not in ``EXPECTED_SKIP_REASONS`` and on any stale entry."""
+    skipped: dict[str, str] = {}
+    for case in ET.parse(report).iter("testcase"):
+        marker = case.find("skipped")
+        if marker is None:
+            continue
+        key = f"{case.get('classname', '').rsplit('.', 1)[-1]}::{case.get('name', '')}"
+        skipped[key] = marker.get("message", "") + (marker.text or "")
+    expected = EXPECTED_SKIP_REASONS if role == "server" else {}
+    unexpected = sorted(k for k, why in skipped.items() if k not in expected or expected[k] not in why)
+    stale = sorted(k for k in expected if k not in skipped)
+    if unexpected or stale:
+        raise SystemExit(
+            f"{role} conformance is not a complete gate: unexpected skips {unexpected}, "
+            f"expected skips that ran {stale}"
+        )
 
 
 def main() -> None:
@@ -44,8 +83,7 @@ def main() -> None:
                 },
                 check=True,
             )
-            if ET.parse(report).findall(".//skipped"):
-                raise SystemExit(f"{role} conformance skipped tests; this is not a complete gate")
+            check_skips(role, report)
 
 
 if __name__ == "__main__":

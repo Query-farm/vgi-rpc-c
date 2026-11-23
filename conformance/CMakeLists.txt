@@ -1,4 +1,5 @@
-add_executable(conformance_worker worker.c nested.c identity.c secondary.c protocol.c storage.c)
+add_executable(conformance_worker worker.c nested.c identity.c secondary.c protocol.c storage.c
+    state_ref.c)
 target_include_directories(conformance_worker PRIVATE ../src)
 target_link_libraries(conformance_worker PRIVATE vgi_rpc::vgi_rpc PkgConfig::JSONC PkgConfig::CURL PkgConfig::SODIUM)
 

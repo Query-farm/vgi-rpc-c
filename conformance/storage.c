@@ -36,20 +36,20 @@ static int validate(void *state, const char *url) {
     return rc;
 }
 /* Ask the fake storage for a URL pair sized and hashed for one upload; any
- * headers it signs come back in "headers" and are sent on the PUT. */
-static int allocate(void *state, int64_t size, const char *sha256, struct VgiExternalUploadUrl *out,
-                    struct ArrowError *error) {
-    struct ConformanceStorage *storage = state;
+ * headers it signs come back in "headers" and are sent on the PUT. An object
+ * allocation ("purpose": "object") is the object API's put_object. */
+static int alloc_request(struct ConformanceStorage *storage, int64_t size, const char *sha256,
+                         int object, struct VgiExternalUploadUrl *out, struct ArrowError *error) {
     unsigned char digest[32];
     char digest_b64[sodium_base64_ENCODED_LEN(32, sodium_base64_VARIANT_ORIGINAL)];
     if (sodium_hex2bin(digest, sizeof(digest), sha256, strlen(sha256), NULL, NULL, NULL))
         return EINVAL;
     sodium_bin2base64(digest_b64, sizeof(digest_b64), digest, sizeof(digest),
                       sodium_base64_VARIANT_ORIGINAL);
-    char request[160];
+    char request[200];
     int request_length =
-        snprintf(request, sizeof(request), "{\"size\": %lld, \"sha256_b64\": \"%s\"}",
-                 (long long)size, digest_b64);
+        snprintf(request, sizeof(request), "{\"size\": %lld, \"sha256_b64\": \"%s\"%s}",
+                 (long long)size, digest_b64, object ? ", \"purpose\": \"object\"" : "");
     if (request_length < 0 || (size_t)request_length >= sizeof(request)) return EINVAL;
     size_t url_size = strlen(storage->base_url) + 7;
     char *url = malloc(url_size);
@@ -79,6 +79,12 @@ static int allocate(void *state, int64_t size, const char *sha256, struct VgiExt
             out->expires_at_us = ((int64_t)time(NULL) + 3600) * 1000000;
             if (!out->upload_url || !out->download_url) rc = ENOMEM;
         }
+        struct json_object *object_id = NULL;
+        if (!rc && json_object_object_get_ex(value, "object_id", &object_id) &&
+            json_object_is_type(object_id, json_type_string)) {
+            out->object_id = strdup(json_object_get_string(object_id));
+            if (!out->object_id) rc = ENOMEM;
+        }
         struct json_object *headers = NULL;
         if (!rc && json_object_object_get_ex(value, "upload_headers", &headers) && headers) {
             if (!json_object_is_type(headers, json_type_object))
@@ -101,12 +107,57 @@ static int allocate(void *state, int64_t size, const char *sha256, struct VgiExt
     free(url);
     return rc;
 }
+static int allocate(void *state, int64_t size, const char *sha256, struct VgiExternalUploadUrl *out,
+                    struct ArrowError *error) {
+    return alloc_request(state, size, sha256, 0, out, error);
+}
+static int put_object(void *state, struct ArrowBufferView data, char **object_id,
+                      struct ArrowError *error) {
+    struct ConformanceStorage *storage = state;
+    if (!object_id || *object_id || data.size_bytes < 1) return EINVAL;
+    char sha256[65];
+    struct VgiExternalUploadUrl url = {0};
+    struct ArrowBuffer response;
+    ArrowBufferInit(&response);
+    int rc = VgiExternalSha256Hex(data.data.data, (size_t)data.size_bytes, sha256);
+    if (!rc) rc = alloc_request(storage, data.size_bytes, sha256, 1, &url, error);
+    if (!rc && !url.object_id) rc = EINVAL;
+    if (!rc)
+        rc = VgiExternalHttp(&storage->options, "PUT", url.upload_url, data, NULL, url.headers,
+                             url.header_count, &response, error);
+    if (!rc) {
+        *object_id = url.object_id;
+        url.object_id = NULL;
+    }
+    VgiExternalUploadUrlReset(&url);
+    ArrowBufferReset(&response);
+    return rc;
+}
+/* GET /objects/{id}: the fake storage's object API; 404 means missing. */
+static int get_object(void *state, const char *object_id, int64_t max_bytes,
+                      struct ArrowBuffer *out, struct ArrowError *error) {
+    struct ConformanceStorage *storage = state;
+    if (!object_id || !*object_id || strpbrk(object_id, "/?#%") || max_bytes < 1) return EINVAL;
+    size_t url_size = strlen(storage->base_url) + strlen(object_id) + 10;
+    char *url = malloc(url_size);
+    if (!url) return ENOMEM;
+    snprintf(url, url_size, "%s/objects/%s", storage->base_url, object_id);
+    struct VgiExternalOptions options = storage->options;
+    options.max_fetch_bytes = max_bytes;
+    options.max_decompressed_bytes = max_bytes;
+    int rc = VgiExternalHttp(&options, "GET", url, (struct ArrowBufferView){{NULL}, 0}, NULL, NULL,
+                             0, out, error);
+    free(url);
+    return rc;
+}
 void ConformanceStorageInit(struct ConformanceStorage *storage) {
     memset(storage, 0, sizeof(*storage));
     VgiExternalOptionsInit(&storage->options);
     storage->options.validate_url = validate;
     storage->options.validate_state = storage;
     storage->options.allocate = allocate;
+    storage->options.put_object = put_object;
+    storage->options.get_object = get_object;
     storage->options.storage_state = storage;
     pthread_mutex_init(&storage->mutex, NULL);
 }

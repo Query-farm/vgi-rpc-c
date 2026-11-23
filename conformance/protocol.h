@@ -14,6 +14,8 @@ int VgiSchemaACCUM_OUTPUT_SCHEMA(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaINPUT_METADATA_OUTPUT_SCHEMA(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaSESSION_COUNTER_OUTPUT_SCHEMA(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaSESSION_COUNTER_EXCHANGE_INPUT_SCHEMA(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaSTATE_REF_INPUT_SCHEMA(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaSTATE_REF_OUTPUT_SCHEMA(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaPoint(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaBoundingBox(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaAllTypes(struct ArrowSchema *, struct ArrowError *);
@@ -46,6 +48,8 @@ int VgiSchemaCancellableProducerState(struct ArrowSchema *, struct ArrowError *)
 int VgiSchemaCancellableExchangeState(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaRichHeader(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaDynamicProducerState(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaStateRefExchangeState(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaObjectCacheStatsResult(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceAddFloatsParams(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceAddFloatsEnvelope(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceCancelProbeCountersParams(struct ArrowSchema *, struct ArrowError *);
@@ -169,6 +173,11 @@ int VgiSchemaConformanceIncrementCounterParams(struct ArrowSchema *, struct Arro
 int VgiSchemaConformanceIncrementCounterEnvelope(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceInspectPointParams(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceInspectPointEnvelope(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaConformanceObjectCacheAgeParams(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaConformanceObjectCacheAgeEnvelope(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaConformanceObjectCacheStatsParams(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaConformanceObjectCacheStatsEnvelope(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaConformanceObjectCacheStatsResult(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceOpenCounterParams(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceOpenCounterEnvelope(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceOversizedUnaryParams(struct ArrowSchema *, struct ArrowError *);
@@ -203,6 +212,9 @@ int VgiSchemaConformanceRaiseTypeErrorEnvelope(struct ArrowSchema *, struct Arro
 int VgiSchemaConformanceRaiseValueErrorParams(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceRaiseValueErrorEnvelope(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceResetCancelProbeParams(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaConformanceResolveArgumentRefParams(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaConformanceResolveArgumentRefEnvelope(struct ArrowSchema *, struct ArrowError *);
+int VgiSchemaConformanceStateRefExchangeParams(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceStreamSessionCounterParams(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceVoidNoopParams(struct ArrowSchema *, struct ArrowError *);
 int VgiSchemaConformanceVoidWithParamParams(struct ArrowSchema *, struct ArrowError *);
@@ -215,7 +227,7 @@ int VgiSchemaSecondaryFailOversizedParams(struct ArrowSchema *, struct ArrowErro
 int ConformanceSchemaInit(const char *, struct ArrowSchema *, struct ArrowError *);
 #define VGI_CONFORMANCE_NAME "ConformanceService"
 #define VGI_CONFORMANCE_VERSION "2.0.0"
-#define VGI_CONFORMANCE_HASH "05479410c96f34410a2b10a4f6a49d59dcfd9d6d1d45ce9a9807d060a3bd6014"
+#define VGI_CONFORMANCE_HASH "22426518ead543d7e8ca3903280815d5855b9450f46739790fe66804c7e77331"
 extern const struct VgiMethod VGI_CONFORMANCE_METHODS[];
 extern const size_t VGI_CONFORMANCE_METHOD_COUNT;
 #define VGI_SECONDARY_NAME "conformance.Secondary.v1"

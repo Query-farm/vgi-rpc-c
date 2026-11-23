@@ -1140,6 +1140,79 @@ def conformance_bytestream_external_target(
     )
 
 
+# ---------------------------------------------------------------------------
+# StateRef, object cache and argument references (STATE_REF_V1.md §15)
+# ---------------------------------------------------------------------------
+
+#: The token key both replicas share: an argument reference minted on one opens
+#: on the other only under one key.
+_STATE_REF_TOKEN_KEY = "a7" * 32
+
+
+@pytest.fixture(scope="session")
+def conformance_state_ref_capabilities() -> frozenset[str]:
+    """This port keeps HTTP stream state in process (STATE_REF_V1.md §5.4).
+
+    Its StateRefs are in-memory and inline only, so the shared cases needing
+    stored tags, cross-replica turns, the cursor rule, codec bytes or tag
+    expiry skip with ``SINGLE_REPLICA_SKIP_REASON``; ``scripts/test_conformance.py``
+    lists exactly those skips.  The reference server serializes its state.
+    """
+    return frozenset({"serialized_state"}) if CONFORMANCE_SERVER == "python" else frozenset()
+
+
+@pytest.fixture(scope="session")
+def conformance_state_ref_replicas(conformance_fake_storage: str) -> Iterator[Any]:
+    """Two workers sharing a token key and the fake storage.
+
+    The shared contract asks for no request cap; this port requires one, so
+    the default 64 MiB cap stands in (the cursor rule it would gate does not
+    exist here).  Object cache bound ``OBJECT_CACHE_TEST_BYTES``;
+    ``X-Conformance-Principal`` is required.
+    """
+    from vgi_rpc.conformance._state_ref_pytest import OBJECT_CACHE_TEST_BYTES, StateRefReplicas
+
+    if CONFORMANCE_SERVER == "python":
+        pytest.skip("the replica pair is this port's own server configuration")
+    flags = (
+        "--fake-storage",
+        conformance_fake_storage,
+        "--token-key",
+        _STATE_REF_TOKEN_KEY,
+        "--max-request-bytes",
+        str(64 * 1024 * 1024),
+        "--object-cache-bytes",
+        str(OBJECT_CACHE_TEST_BYTES),
+        "--require-principal",
+    )
+    with spawn_http(*flags) as a, spawn_http(*flags) as b:
+        yield StateRefReplicas(ports=(a, b), storage_url=conformance_fake_storage)
+
+
+@pytest.fixture(scope="session")
+def conformance_state_ref_short_ttl_port(conformance_fake_storage: str) -> Iterator[int]:
+    """One worker with the fake storage and a 2 s maximum stream duration.
+
+    Unused while this port's capability set is empty (tag expiry needs
+    serialized state); provided so the runner contract is complete.
+    """
+    with spawn_http("--fake-storage", conformance_fake_storage, "--token-ttl", "2") as port:
+        yield port
+
+
+@pytest.fixture(scope="session")
+def conformance_cursor_budget_ports() -> Iterator[Any]:
+    """The warn / error / floor request caps (unused here: no cursor rule, §5.4)."""
+    from vgi_rpc.conformance._state_ref_pytest import CursorBudgetPorts
+
+    with (
+        spawn_http("--max-request-bytes", "32768") as warn,
+        spawn_http("--max-request-bytes", "32768") as error,
+        spawn_http("--max-request-bytes", "9000") as floor,
+    ):
+        yield CursorBudgetPorts(warn=warn, error=error, floor=floor)
+
+
 @pytest.fixture(scope="session")
 def conformance_http_with_storage_port(conformance_fake_storage: str) -> Iterator[int]:
     """A worker wired against the fake storage, with a small threshold.

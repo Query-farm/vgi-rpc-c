@@ -50,1029 +50,1099 @@ static const struct VgiSchemaNode node_13 = {"+s", "", NULL, 0, 1, children_13, 
 int VgiSchemaSESSION_COUNTER_EXCHANGE_INPUT_SCHEMA(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_13, out, error);
 }
-static const struct VgiSchemaNode node_14 = {"g", "x", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_15 = {"g", "y", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_16[] = {&node_14, &node_15};
-static const struct VgiSchemaNode node_16 = {"+s", "", NULL, 0, 2, children_16, NULL};
-int VgiSchemaPoint(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_16, out, error);
+static const struct VgiSchemaNode node_14 = {"z", "override", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_15[] = {&node_14};
+static const struct VgiSchemaNode node_15 = {"+s", "", NULL, 0, 1, children_15, NULL};
+int VgiSchemaSTATE_REF_INPUT_SCHEMA(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_15, out, error);
 }
-static const struct VgiSchemaNode *const children_17[] = {&node_14, &node_15};
-static const struct VgiSchemaNode node_17 = {"+s", "top_left", NULL, 0, 2, children_17, NULL};
-static const struct VgiSchemaNode *const children_18[] = {&node_14, &node_15};
-static const struct VgiSchemaNode node_18 = {"+s", "bottom_right", NULL, 0, 2, children_18, NULL};
-static const struct VgiSchemaNode node_19 = {"u", "label", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_20[] = {&node_17, &node_18, &node_19};
-static const struct VgiSchemaNode node_20 = {"+s", "", NULL, 0, 3, children_20, NULL};
-int VgiSchemaBoundingBox(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_16 = {"l", "size", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_17 = {"u", "sha256", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_18 = {"u", "form", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_19 = {"z", "ref", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_20[] = {&node_16, &node_17, &node_18, &node_19};
+static const struct VgiSchemaNode node_20 = {"+s", "", NULL, 0, 4, children_20, NULL};
+int VgiSchemaSTATE_REF_OUTPUT_SCHEMA(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_20, out, error);
 }
-static const struct VgiSchemaNode node_21 = {"u", "str_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_22 = {"z", "bytes_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_23 = {"l", "int_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_24 = {"g", "float_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_25 = {"b", "bool_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_26 = {"l", "item", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_27[] = {&node_26};
-static const struct VgiSchemaNode node_27 = {"+l", "list_of_int", NULL, 0, 1, children_27, NULL};
-static const struct VgiSchemaNode node_28 = {"u", "item", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_29[] = {&node_28};
-static const struct VgiSchemaNode node_29 = {"+l", "list_of_str", NULL, 0, 1, children_29, NULL};
-static const struct VgiSchemaNode node_30 = {"u", "key", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_31[] = {&node_30, &node_1};
-static const struct VgiSchemaNode node_31 = {"+s", "entries", NULL, 0, 2, children_31, NULL};
-static const struct VgiSchemaNode *const children_32[] = {&node_31};
-static const struct VgiSchemaNode node_32 = {"+m", "dict_field", NULL, 0, 1, children_32, NULL};
-static const struct VgiSchemaNode node_33 = {"u", "", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode node_34 = {"s", "enum_field", NULL, 0, 0, NULL, &node_33};
-static const struct VgiSchemaNode *const children_35[] = {&node_14, &node_15};
-static const struct VgiSchemaNode node_35 = {"+s", "nested_point", NULL, 0, 2, children_35, NULL};
-static const struct VgiSchemaNode node_36 = {"u", "optional_str", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode node_37 = {"l", "optional_int", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_38[] = {&node_14, &node_15};
-static const struct VgiSchemaNode node_38 = {"+s", "optional_nested", NULL, 2, 2, children_38, NULL};
-static const struct VgiSchemaNode *const children_39[] = {&node_14, &node_15};
-static const struct VgiSchemaNode node_39 = {"+s", "item", NULL, 2, 2, children_39, NULL};
-static const struct VgiSchemaNode *const children_40[] = {&node_39};
-static const struct VgiSchemaNode node_40 = {"+l", "list_of_nested", NULL, 0, 1, children_40, NULL};
-static const struct VgiSchemaNode node_41 = {"i", "annotated_int32", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_42 = {"f", "annotated_float32", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_43[] = {&node_26};
-static const struct VgiSchemaNode node_43 = {"+l", "item", NULL, 2, 1, children_43, NULL};
-static const struct VgiSchemaNode *const children_44[] = {&node_43};
-static const struct VgiSchemaNode node_44 = {"+l", "nested_list", NULL, 0, 1, children_44, NULL};
-static const struct VgiSchemaNode node_45 = {"u", "value", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_46[] = {&node_30, &node_45};
-static const struct VgiSchemaNode node_46 = {"+s", "entries", NULL, 0, 2, children_46, NULL};
+static const struct VgiSchemaNode node_21 = {"g", "x", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_22 = {"g", "y", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_23[] = {&node_21, &node_22};
+static const struct VgiSchemaNode node_23 = {"+s", "", NULL, 0, 2, children_23, NULL};
+int VgiSchemaPoint(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_23, out, error);
+}
+static const struct VgiSchemaNode *const children_24[] = {&node_21, &node_22};
+static const struct VgiSchemaNode node_24 = {"+s", "top_left", NULL, 0, 2, children_24, NULL};
+static const struct VgiSchemaNode *const children_25[] = {&node_21, &node_22};
+static const struct VgiSchemaNode node_25 = {"+s", "bottom_right", NULL, 0, 2, children_25, NULL};
+static const struct VgiSchemaNode node_26 = {"u", "label", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_27[] = {&node_24, &node_25, &node_26};
+static const struct VgiSchemaNode node_27 = {"+s", "", NULL, 0, 3, children_27, NULL};
+int VgiSchemaBoundingBox(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_27, out, error);
+}
+static const struct VgiSchemaNode node_28 = {"u", "str_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_29 = {"z", "bytes_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_30 = {"l", "int_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_31 = {"g", "float_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_32 = {"b", "bool_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_33 = {"l", "item", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_34[] = {&node_33};
+static const struct VgiSchemaNode node_34 = {"+l", "list_of_int", NULL, 0, 1, children_34, NULL};
+static const struct VgiSchemaNode node_35 = {"u", "item", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_36[] = {&node_35};
+static const struct VgiSchemaNode node_36 = {"+l", "list_of_str", NULL, 0, 1, children_36, NULL};
+static const struct VgiSchemaNode node_37 = {"u", "key", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_38[] = {&node_37, &node_1};
+static const struct VgiSchemaNode node_38 = {"+s", "entries", NULL, 0, 2, children_38, NULL};
+static const struct VgiSchemaNode *const children_39[] = {&node_38};
+static const struct VgiSchemaNode node_39 = {"+m", "dict_field", NULL, 0, 1, children_39, NULL};
+static const struct VgiSchemaNode node_40 = {"u", "", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode node_41 = {"s", "enum_field", NULL, 0, 0, NULL, &node_40};
+static const struct VgiSchemaNode *const children_42[] = {&node_21, &node_22};
+static const struct VgiSchemaNode node_42 = {"+s", "nested_point", NULL, 0, 2, children_42, NULL};
+static const struct VgiSchemaNode node_43 = {"u", "optional_str", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode node_44 = {"l", "optional_int", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_45[] = {&node_21, &node_22};
+static const struct VgiSchemaNode node_45 = {"+s", "optional_nested", NULL, 2, 2, children_45, NULL};
+static const struct VgiSchemaNode *const children_46[] = {&node_21, &node_22};
+static const struct VgiSchemaNode node_46 = {"+s", "item", NULL, 2, 2, children_46, NULL};
 static const struct VgiSchemaNode *const children_47[] = {&node_46};
-static const struct VgiSchemaNode node_47 = {"+m", "dict_str_str", NULL, 0, 1, children_47, NULL};
-static const struct VgiSchemaNode *const children_48[] = {&node_21, &node_22, &node_23, &node_24, &node_25, &node_27, &node_29, &node_32, &node_34, &node_35, &node_36, &node_37, &node_38, &node_40, &node_41, &node_42, &node_44, &node_47};
-static const struct VgiSchemaNode node_48 = {"+s", "", NULL, 0, 18, children_48, NULL};
+static const struct VgiSchemaNode node_47 = {"+l", "list_of_nested", NULL, 0, 1, children_47, NULL};
+static const struct VgiSchemaNode node_48 = {"i", "annotated_int32", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_49 = {"f", "annotated_float32", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_50[] = {&node_33};
+static const struct VgiSchemaNode node_50 = {"+l", "item", NULL, 2, 1, children_50, NULL};
+static const struct VgiSchemaNode *const children_51[] = {&node_50};
+static const struct VgiSchemaNode node_51 = {"+l", "nested_list", NULL, 0, 1, children_51, NULL};
+static const struct VgiSchemaNode node_52 = {"u", "value", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_53[] = {&node_37, &node_52};
+static const struct VgiSchemaNode node_53 = {"+s", "entries", NULL, 0, 2, children_53, NULL};
+static const struct VgiSchemaNode *const children_54[] = {&node_53};
+static const struct VgiSchemaNode node_54 = {"+m", "dict_str_str", NULL, 0, 1, children_54, NULL};
+static const struct VgiSchemaNode *const children_55[] = {&node_28, &node_29, &node_30, &node_31, &node_32, &node_34, &node_36, &node_39, &node_41, &node_42, &node_43, &node_44, &node_45, &node_47, &node_48, &node_49, &node_51, &node_54};
+static const struct VgiSchemaNode node_55 = {"+s", "", NULL, 0, 18, children_55, NULL};
 int VgiSchemaAllTypes(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_48, out, error);
+    return VgiSchemaBuild(&node_55, out, error);
 }
-static const struct VgiSchemaNode node_49 = {"c", "int8_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_50 = {"s", "int16_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_51 = {"i", "int32_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_52 = {"C", "uint8_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_53 = {"S", "uint16_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_54 = {"I", "uint32_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_55 = {"L", "uint64_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_56 = {"f", "float32_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_57 = {"tdD", "date_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_58 = {"tsu:", "timestamp_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_59 = {"tsu:UTC", "timestamp_utc_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_60 = {"ttu", "time_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_61 = {"tDu", "duration_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_62 = {"d:20,4", "decimal_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_63 = {"U", "large_string_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_64 = {"Z", "large_binary_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_65 = {"w:8", "fixed_binary_field", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_66[] = {&node_49, &node_50, &node_51, &node_52, &node_53, &node_54, &node_55, &node_56, &node_57, &node_58, &node_59, &node_60, &node_61, &node_62, &node_63, &node_64, &node_65};
-static const struct VgiSchemaNode node_66 = {"+s", "", NULL, 0, 17, children_66, NULL};
+static const struct VgiSchemaNode node_56 = {"c", "int8_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_57 = {"s", "int16_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_58 = {"i", "int32_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_59 = {"C", "uint8_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_60 = {"S", "uint16_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_61 = {"I", "uint32_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_62 = {"L", "uint64_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_63 = {"f", "float32_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_64 = {"tdD", "date_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_65 = {"tsu:", "timestamp_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_66 = {"tsu:UTC", "timestamp_utc_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_67 = {"ttu", "time_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_68 = {"tDu", "duration_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_69 = {"d:20,4", "decimal_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_70 = {"U", "large_string_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_71 = {"Z", "large_binary_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_72 = {"w:8", "fixed_binary_field", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_73[] = {&node_56, &node_57, &node_58, &node_59, &node_60, &node_61, &node_62, &node_63, &node_64, &node_65, &node_66, &node_67, &node_68, &node_69, &node_70, &node_71, &node_72};
+static const struct VgiSchemaNode node_73 = {"+s", "", NULL, 0, 17, children_73, NULL};
 int VgiSchemaWideTypes(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_66, out, error);
+    return VgiSchemaBuild(&node_73, out, error);
 }
-static const struct VgiSchemaNode node_67 = {"d:20,4", "item", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_68[] = {&node_67};
-static const struct VgiSchemaNode node_68 = {"+l", "list_decimal", NULL, 0, 1, children_68, NULL};
-static const struct VgiSchemaNode node_69 = {"tdD", "item", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_70[] = {&node_69};
-static const struct VgiSchemaNode node_70 = {"+l", "list_date", NULL, 0, 1, children_70, NULL};
-static const struct VgiSchemaNode node_71 = {"tsu:", "item", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_72[] = {&node_71};
-static const struct VgiSchemaNode node_72 = {"+l", "list_timestamp", NULL, 0, 1, children_72, NULL};
-static const struct VgiSchemaNode node_73 = {"tdD", "optional_date", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode node_74 = {"d:20,4", "optional_decimal", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode node_75 = {"tsu:", "optional_timestamp", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode node_76 = {"d:20,4", "value", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_77[] = {&node_30, &node_76};
-static const struct VgiSchemaNode node_77 = {"+s", "entries", NULL, 0, 2, children_77, NULL};
-static const struct VgiSchemaNode *const children_78[] = {&node_77};
-static const struct VgiSchemaNode node_78 = {"+m", "dict_str_decimal", NULL, 0, 1, children_78, NULL};
-static const struct VgiSchemaNode *const children_79[] = {&node_26};
-static const struct VgiSchemaNode node_79 = {"+l", "frozenset_int", NULL, 0, 1, children_79, NULL};
-static const struct VgiSchemaNode *const children_80[] = {&node_26};
-static const struct VgiSchemaNode node_80 = {"+l", "list_optional_int", NULL, 0, 1, children_80, NULL};
-static const struct VgiSchemaNode *const children_81[] = {&node_68, &node_70, &node_72, &node_73, &node_74, &node_75, &node_78, &node_79, &node_80};
-static const struct VgiSchemaNode node_81 = {"+s", "", NULL, 0, 9, children_81, NULL};
+static const struct VgiSchemaNode node_74 = {"d:20,4", "item", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_75[] = {&node_74};
+static const struct VgiSchemaNode node_75 = {"+l", "list_decimal", NULL, 0, 1, children_75, NULL};
+static const struct VgiSchemaNode node_76 = {"tdD", "item", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_77[] = {&node_76};
+static const struct VgiSchemaNode node_77 = {"+l", "list_date", NULL, 0, 1, children_77, NULL};
+static const struct VgiSchemaNode node_78 = {"tsu:", "item", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_79[] = {&node_78};
+static const struct VgiSchemaNode node_79 = {"+l", "list_timestamp", NULL, 0, 1, children_79, NULL};
+static const struct VgiSchemaNode node_80 = {"tdD", "optional_date", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode node_81 = {"d:20,4", "optional_decimal", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode node_82 = {"tsu:", "optional_timestamp", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode node_83 = {"d:20,4", "value", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_84[] = {&node_37, &node_83};
+static const struct VgiSchemaNode node_84 = {"+s", "entries", NULL, 0, 2, children_84, NULL};
+static const struct VgiSchemaNode *const children_85[] = {&node_84};
+static const struct VgiSchemaNode node_85 = {"+m", "dict_str_decimal", NULL, 0, 1, children_85, NULL};
+static const struct VgiSchemaNode *const children_86[] = {&node_33};
+static const struct VgiSchemaNode node_86 = {"+l", "frozenset_int", NULL, 0, 1, children_86, NULL};
+static const struct VgiSchemaNode *const children_87[] = {&node_33};
+static const struct VgiSchemaNode node_87 = {"+l", "list_optional_int", NULL, 0, 1, children_87, NULL};
+static const struct VgiSchemaNode *const children_88[] = {&node_75, &node_77, &node_79, &node_80, &node_81, &node_82, &node_85, &node_86, &node_87};
+static const struct VgiSchemaNode node_88 = {"+s", "", NULL, 0, 9, children_88, NULL};
 int VgiSchemaContainerWideTypes(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_81, out, error);
-}
-static const struct VgiSchemaNode *const children_82[] = {&node_67};
-static const struct VgiSchemaNode node_82 = {"+l", "item", NULL, 2, 1, children_82, NULL};
-static const struct VgiSchemaNode *const children_83[] = {&node_82};
-static const struct VgiSchemaNode node_83 = {"+l", "list_of_lists_decimal", NULL, 0, 1, children_83, NULL};
-static const struct VgiSchemaNode *const children_84[] = {&node_69};
-static const struct VgiSchemaNode node_84 = {"+l", "optional_list_date", NULL, 2, 1, children_84, NULL};
-static const struct VgiSchemaNode node_85 = {"s", "dict_encoded_string", NULL, 0, 0, NULL, &node_33};
-static const struct VgiSchemaNode node_86 = {"s", "item", NULL, 2, 0, NULL, &node_33};
-static const struct VgiSchemaNode *const children_87[] = {&node_86};
-static const struct VgiSchemaNode node_87 = {"+l", "list_of_dict_encoded", NULL, 0, 1, children_87, NULL};
-static const struct VgiSchemaNode *const children_88[] = {&node_83, &node_84, &node_85, &node_87};
-static const struct VgiSchemaNode node_88 = {"+s", "", NULL, 0, 4, children_88, NULL};
-int VgiSchemaDeepNested(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_88, out, error);
 }
-static const struct VgiSchemaNode node_89 = {"z", "batch", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_90 = {"z", "schema", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_91[] = {&node_89, &node_90};
-static const struct VgiSchemaNode node_91 = {"+s", "", NULL, 0, 2, children_91, NULL};
+static const struct VgiSchemaNode *const children_89[] = {&node_74};
+static const struct VgiSchemaNode node_89 = {"+l", "item", NULL, 2, 1, children_89, NULL};
+static const struct VgiSchemaNode *const children_90[] = {&node_89};
+static const struct VgiSchemaNode node_90 = {"+l", "list_of_lists_decimal", NULL, 0, 1, children_90, NULL};
+static const struct VgiSchemaNode *const children_91[] = {&node_76};
+static const struct VgiSchemaNode node_91 = {"+l", "optional_list_date", NULL, 2, 1, children_91, NULL};
+static const struct VgiSchemaNode node_92 = {"s", "dict_encoded_string", NULL, 0, 0, NULL, &node_40};
+static const struct VgiSchemaNode node_93 = {"s", "item", NULL, 2, 0, NULL, &node_40};
+static const struct VgiSchemaNode *const children_94[] = {&node_93};
+static const struct VgiSchemaNode node_94 = {"+l", "list_of_dict_encoded", NULL, 0, 1, children_94, NULL};
+static const struct VgiSchemaNode *const children_95[] = {&node_90, &node_91, &node_92, &node_94};
+static const struct VgiSchemaNode node_95 = {"+s", "", NULL, 0, 4, children_95, NULL};
+int VgiSchemaDeepNested(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_95, out, error);
+}
+static const struct VgiSchemaNode node_96 = {"z", "batch", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_97 = {"z", "schema", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_98[] = {&node_96, &node_97};
+static const struct VgiSchemaNode node_98 = {"+s", "", NULL, 0, 2, children_98, NULL};
 int VgiSchemaEmbeddedArrow(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_91, out, error);
+    return VgiSchemaBuild(&node_98, out, error);
 }
-static const struct VgiSchemaNode *const children_92[] = {&node_86};
-static const struct VgiSchemaNode node_92 = {"+l", "statuses", NULL, 0, 1, children_92, NULL};
-static const struct VgiSchemaNode *const children_93[] = {&node_39};
-static const struct VgiSchemaNode node_93 = {"+l", "points", NULL, 0, 1, children_93, NULL};
-static const struct VgiSchemaNode node_94 = {"s", "value", NULL, 2, 0, NULL, &node_33};
-static const struct VgiSchemaNode *const children_95[] = {&node_30, &node_94};
-static const struct VgiSchemaNode node_95 = {"+s", "entries", NULL, 0, 2, children_95, NULL};
-static const struct VgiSchemaNode *const children_96[] = {&node_95};
-static const struct VgiSchemaNode node_96 = {"+m", "status_by_name", NULL, 0, 1, children_96, NULL};
-static const struct VgiSchemaNode *const children_97[] = {&node_86};
-static const struct VgiSchemaNode node_97 = {"+l", "frozen_statuses", NULL, 0, 1, children_97, NULL};
-static const struct VgiSchemaNode node_98 = {"s", "tagged_status", NULL, 2, 0, NULL, &node_33};
-static const struct VgiSchemaNode *const children_99[] = {&node_14, &node_15};
-static const struct VgiSchemaNode node_99 = {"+s", "tagged_point", NULL, 2, 2, children_99, NULL};
-static const struct VgiSchemaNode node_100 = {"z", "tagged_batch", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_101[] = {&node_92, &node_93, &node_96, &node_97, &node_98, &node_99, &node_100};
-static const struct VgiSchemaNode node_101 = {"+s", "", NULL, 0, 7, children_101, NULL};
+static const struct VgiSchemaNode *const children_99[] = {&node_93};
+static const struct VgiSchemaNode node_99 = {"+l", "statuses", NULL, 0, 1, children_99, NULL};
+static const struct VgiSchemaNode *const children_100[] = {&node_46};
+static const struct VgiSchemaNode node_100 = {"+l", "points", NULL, 0, 1, children_100, NULL};
+static const struct VgiSchemaNode node_101 = {"s", "value", NULL, 2, 0, NULL, &node_40};
+static const struct VgiSchemaNode *const children_102[] = {&node_37, &node_101};
+static const struct VgiSchemaNode node_102 = {"+s", "entries", NULL, 0, 2, children_102, NULL};
+static const struct VgiSchemaNode *const children_103[] = {&node_102};
+static const struct VgiSchemaNode node_103 = {"+m", "status_by_name", NULL, 0, 1, children_103, NULL};
+static const struct VgiSchemaNode *const children_104[] = {&node_93};
+static const struct VgiSchemaNode node_104 = {"+l", "frozen_statuses", NULL, 0, 1, children_104, NULL};
+static const struct VgiSchemaNode node_105 = {"s", "tagged_status", NULL, 2, 0, NULL, &node_40};
+static const struct VgiSchemaNode *const children_106[] = {&node_21, &node_22};
+static const struct VgiSchemaNode node_106 = {"+s", "tagged_point", NULL, 2, 2, children_106, NULL};
+static const struct VgiSchemaNode node_107 = {"z", "tagged_batch", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_108[] = {&node_99, &node_100, &node_103, &node_104, &node_105, &node_106, &node_107};
+static const struct VgiSchemaNode node_108 = {"+s", "", NULL, 0, 7, children_108, NULL};
 int VgiSchemaNestedContainers(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_101, out, error);
+    return VgiSchemaBuild(&node_108, out, error);
 }
-static const struct VgiSchemaNode node_102 = {"l", "total_expected", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_103 = {"u", "description", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_104[] = {&node_102, &node_103};
-static const struct VgiSchemaNode node_104 = {"+s", "", NULL, 0, 2, children_104, NULL};
+static const struct VgiSchemaNode node_109 = {"l", "total_expected", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_110 = {"u", "description", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_111[] = {&node_109, &node_110};
+static const struct VgiSchemaNode node_111 = {"+s", "", NULL, 0, 2, children_111, NULL};
 int VgiSchemaConformanceHeader(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_104, out, error);
-}
-static const struct VgiSchemaNode node_105 = {"l", "count", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_106 = {"l", "current", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_107[] = {&node_105, &node_106};
-static const struct VgiSchemaNode node_107 = {"+s", "", NULL, 0, 2, children_107, NULL};
-int VgiSchemaCounterState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_107, out, error);
-}
-int VgiSchemaTickMetadataState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_107, out, error);
-}
-static const struct VgiSchemaNode node_108 = {"l", "_placeholder", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_109[] = {&node_108};
-static const struct VgiSchemaNode node_109 = {"+s", "", NULL, 0, 1, children_109, NULL};
-int VgiSchemaEmptyProducerState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_109, out, error);
-}
-static const struct VgiSchemaNode node_110 = {"b", "emitted", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_111[] = {&node_110};
-static const struct VgiSchemaNode node_111 = {"+s", "", NULL, 0, 1, children_111, NULL};
-int VgiSchemaSingleProducerState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_111, out, error);
 }
-static const struct VgiSchemaNode node_112 = {"l", "rows_per_batch", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_113 = {"l", "batch_count", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_114[] = {&node_112, &node_113, &node_106};
-static const struct VgiSchemaNode node_114 = {"+s", "", NULL, 0, 3, children_114, NULL};
-int VgiSchemaLargeProducerState(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_112 = {"l", "count", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_113 = {"l", "current", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_114[] = {&node_112, &node_113};
+static const struct VgiSchemaNode node_114 = {"+s", "", NULL, 0, 2, children_114, NULL};
+int VgiSchemaCounterState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_114, out, error);
 }
-static const struct VgiSchemaNode *const children_115[] = {&node_105, &node_112, &node_106};
-static const struct VgiSchemaNode node_115 = {"+s", "", NULL, 0, 3, children_115, NULL};
-int VgiSchemaAnnotatedProducerState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_115, out, error);
+int VgiSchemaTickMetadataState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_114, out, error);
 }
-static const struct VgiSchemaNode *const children_116[] = {&node_112, &node_110};
-static const struct VgiSchemaNode node_116 = {"+s", "", NULL, 0, 2, children_116, NULL};
-int VgiSchemaOversizedBatchState(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_115 = {"l", "_placeholder", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_116[] = {&node_115};
+static const struct VgiSchemaNode node_116 = {"+s", "", NULL, 0, 1, children_116, NULL};
+int VgiSchemaEmptyProducerState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_116, out, error);
 }
-int VgiSchemaLoggingProducerState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_107, out, error);
-}
-static const struct VgiSchemaNode node_117 = {"l", "emit_before_error", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_118[] = {&node_117, &node_106};
-static const struct VgiSchemaNode node_118 = {"+s", "", NULL, 0, 2, children_118, NULL};
-int VgiSchemaErrorAfterNState(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_117 = {"b", "emitted", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_118[] = {&node_117};
+static const struct VgiSchemaNode node_118 = {"+s", "", NULL, 0, 1, children_118, NULL};
+int VgiSchemaSingleProducerState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_118, out, error);
 }
-int VgiSchemaHeaderProducerState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_107, out, error);
+static const struct VgiSchemaNode node_119 = {"l", "rows_per_batch", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_120 = {"l", "batch_count", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_121[] = {&node_119, &node_120, &node_113};
+static const struct VgiSchemaNode node_121 = {"+s", "", NULL, 0, 3, children_121, NULL};
+int VgiSchemaLargeProducerState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_121, out, error);
 }
-static const struct VgiSchemaNode node_119 = {"g", "factor", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_120[] = {&node_119};
-static const struct VgiSchemaNode node_120 = {"+s", "", NULL, 0, 1, children_120, NULL};
-int VgiSchemaScaleExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_120, out, error);
+static const struct VgiSchemaNode *const children_122[] = {&node_112, &node_119, &node_113};
+static const struct VgiSchemaNode node_122 = {"+s", "", NULL, 0, 3, children_122, NULL};
+int VgiSchemaAnnotatedProducerState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_122, out, error);
 }
-static const struct VgiSchemaNode node_121 = {"g", "running_sum", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_122 = {"l", "exchange_count", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_123[] = {&node_121, &node_122};
+static const struct VgiSchemaNode *const children_123[] = {&node_119, &node_117};
 static const struct VgiSchemaNode node_123 = {"+s", "", NULL, 0, 2, children_123, NULL};
-int VgiSchemaAccumulatingExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaOversizedBatchState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_123, out, error);
 }
-int VgiSchemaLoggingExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_109, out, error);
+int VgiSchemaLoggingProducerState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_114, out, error);
 }
-int VgiSchemaInputMetadataExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_109, out, error);
-}
-static const struct VgiSchemaNode node_124 = {"l", "call_count", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_125[] = {&node_124};
-static const struct VgiSchemaNode node_125 = {"+s", "", NULL, 0, 1, children_125, NULL};
-int VgiSchemaZeroColumnExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_124 = {"l", "emit_before_error", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_125[] = {&node_124, &node_113};
+static const struct VgiSchemaNode node_125 = {"+s", "", NULL, 0, 2, children_125, NULL};
+int VgiSchemaErrorAfterNState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_125, out, error);
 }
-static const struct VgiSchemaNode node_126 = {"l", "fail_on", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_127[] = {&node_126, &node_122};
-static const struct VgiSchemaNode node_127 = {"+s", "", NULL, 0, 2, children_127, NULL};
-int VgiSchemaFailOnExchangeNState(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaHeaderProducerState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_114, out, error);
+}
+static const struct VgiSchemaNode node_126 = {"g", "factor", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_127[] = {&node_126};
+static const struct VgiSchemaNode node_127 = {"+s", "", NULL, 0, 1, children_127, NULL};
+int VgiSchemaScaleExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_127, out, error);
 }
-static const struct VgiSchemaNode *const children_128[] = {&node_112};
-static const struct VgiSchemaNode node_128 = {"+s", "", NULL, 0, 1, children_128, NULL};
-int VgiSchemaOversizedExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_128, out, error);
-}
-int VgiSchemaSessionCounterProducerState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_107, out, error);
-}
-int VgiSchemaSessionCounterExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_109, out, error);
-}
-static const struct VgiSchemaNode *const children_129[] = {&node_106};
-static const struct VgiSchemaNode node_129 = {"+s", "", NULL, 0, 1, children_129, NULL};
-int VgiSchemaCancellableProducerState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_129, out, error);
-}
-int VgiSchemaCancellableExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_109, out, error);
-}
-static const struct VgiSchemaNode *const children_130[] = {&node_21, &node_22, &node_23, &node_24, &node_25, &node_27, &node_29, &node_32, &node_34, &node_35, &node_36, &node_37, &node_38, &node_40, &node_44, &node_41, &node_42, &node_47};
-static const struct VgiSchemaNode node_130 = {"+s", "", NULL, 0, 18, children_130, NULL};
-int VgiSchemaRichHeader(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_128 = {"g", "running_sum", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_129 = {"l", "exchange_count", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_130[] = {&node_128, &node_129};
+static const struct VgiSchemaNode node_130 = {"+s", "", NULL, 0, 2, children_130, NULL};
+int VgiSchemaAccumulatingExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_130, out, error);
 }
-static const struct VgiSchemaNode node_131 = {"b", "include_strings", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_132 = {"b", "include_floats", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_133[] = {&node_105, &node_131, &node_132, &node_106};
-static const struct VgiSchemaNode node_133 = {"+s", "", NULL, 0, 4, children_133, NULL};
-int VgiSchemaDynamicProducerState(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_133, out, error);
+int VgiSchemaLoggingExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_116, out, error);
 }
-static const struct VgiSchemaNode node_134 = {"g", "a", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_135 = {"g", "b", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_136[] = {&node_134, &node_135};
-static const struct VgiSchemaNode node_136 = {"+s", "", NULL, 0, 2, children_136, NULL};
-int VgiSchemaConformanceAddFloatsParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaInputMetadataExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_116, out, error);
+}
+static const struct VgiSchemaNode node_131 = {"l", "call_count", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_132[] = {&node_131};
+static const struct VgiSchemaNode node_132 = {"+s", "", NULL, 0, 1, children_132, NULL};
+int VgiSchemaZeroColumnExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_132, out, error);
+}
+static const struct VgiSchemaNode node_133 = {"l", "fail_on", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_134[] = {&node_133, &node_129};
+static const struct VgiSchemaNode node_134 = {"+s", "", NULL, 0, 2, children_134, NULL};
+int VgiSchemaFailOnExchangeNState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_134, out, error);
+}
+static const struct VgiSchemaNode *const children_135[] = {&node_119};
+static const struct VgiSchemaNode node_135 = {"+s", "", NULL, 0, 1, children_135, NULL};
+int VgiSchemaOversizedExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_135, out, error);
+}
+int VgiSchemaSessionCounterProducerState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_114, out, error);
+}
+int VgiSchemaSessionCounterExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_116, out, error);
+}
+static const struct VgiSchemaNode *const children_136[] = {&node_113};
+static const struct VgiSchemaNode node_136 = {"+s", "", NULL, 0, 1, children_136, NULL};
+int VgiSchemaCancellableProducerState(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_136, out, error);
 }
-static const struct VgiSchemaNode node_137 = {"g", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_138[] = {&node_137};
-static const struct VgiSchemaNode node_138 = {"+s", "", NULL, 0, 1, children_138, NULL};
-int VgiSchemaConformanceAddFloatsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_138, out, error);
+int VgiSchemaCancellableExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_116, out, error);
 }
-static const struct VgiSchemaNode node_139 = {"+s", "", NULL, 0, 0, NULL, NULL};
-int VgiSchemaConformanceCancelProbeCountersParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
+static const struct VgiSchemaNode *const children_137[] = {&node_28, &node_29, &node_30, &node_31, &node_32, &node_34, &node_36, &node_39, &node_41, &node_42, &node_43, &node_44, &node_45, &node_47, &node_51, &node_48, &node_49, &node_54};
+static const struct VgiSchemaNode node_137 = {"+s", "", NULL, 0, 18, children_137, NULL};
+int VgiSchemaRichHeader(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_137, out, error);
 }
-static const struct VgiSchemaNode *const children_140[] = {&node_26};
-static const struct VgiSchemaNode node_140 = {"+l", "result", NULL, 0, 1, children_140, NULL};
-static const struct VgiSchemaNode *const children_141[] = {&node_140};
-static const struct VgiSchemaNode node_141 = {"+s", "", NULL, 0, 1, children_141, NULL};
-int VgiSchemaConformanceCancelProbeCountersEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_141, out, error);
+static const struct VgiSchemaNode node_138 = {"b", "include_strings", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_139 = {"b", "include_floats", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_140[] = {&node_112, &node_138, &node_139, &node_113};
+static const struct VgiSchemaNode node_140 = {"+s", "", NULL, 0, 4, children_140, NULL};
+int VgiSchemaDynamicProducerState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_140, out, error);
 }
-int VgiSchemaConformanceCancellableExchangeParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
+static const struct VgiSchemaNode node_141 = {"z", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_142 = {"z", "padding", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_143 = {"b", "misuse", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_144[] = {&node_141, &node_142, &node_143};
+static const struct VgiSchemaNode node_144 = {"+s", "", NULL, 0, 3, children_144, NULL};
+int VgiSchemaStateRefExchangeState(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_144, out, error);
 }
-int VgiSchemaConformanceCancellableProducerParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
+static const struct VgiSchemaNode node_145 = {"l", "resident_bytes", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_146 = {"l", "entries", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_147 = {"l", "max_bytes", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_148 = {"l", "hits", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_149 = {"l", "misses", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_150 = {"l", "evictions", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_151 = {"l", "fetches", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_152[] = {&node_145, &node_146, &node_147, &node_148, &node_149, &node_150, &node_151};
+static const struct VgiSchemaNode node_152 = {"+s", "", NULL, 0, 7, children_152, NULL};
+int VgiSchemaObjectCacheStatsResult(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_152, out, error);
 }
-int VgiSchemaConformanceCloseCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-static const struct VgiSchemaNode node_142 = {"l", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_143[] = {&node_142};
-static const struct VgiSchemaNode node_143 = {"+s", "", NULL, 0, 1, children_143, NULL};
-int VgiSchemaConformanceCloseCounterEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_143, out, error);
-}
-static const struct VgiSchemaNode node_144 = {"u", "prefix", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_145 = {"u", "suffix", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_146 = {"u", "separator", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_147[] = {&node_144, &node_145, &node_146};
-static const struct VgiSchemaNode node_147 = {"+s", "", NULL, 0, 3, children_147, NULL};
-int VgiSchemaConformanceConcatenateParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_147, out, error);
-}
-static const struct VgiSchemaNode node_148 = {"u", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_149[] = {&node_148};
-static const struct VgiSchemaNode node_149 = {"+s", "", NULL, 0, 1, children_149, NULL};
-int VgiSchemaConformanceConcatenateEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
-}
-static const struct VgiSchemaNode node_150 = {"z", "data", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_151[] = {&node_150};
-static const struct VgiSchemaNode node_151 = {"+s", "", NULL, 0, 1, children_151, NULL};
-int VgiSchemaConformanceEchoAllTypesParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_151, out, error);
-}
-static const struct VgiSchemaNode node_152 = {"z", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_153[] = {&node_152};
-static const struct VgiSchemaNode node_153 = {"+s", "", NULL, 0, 1, children_153, NULL};
-int VgiSchemaConformanceEchoAllTypesEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
-}
-int VgiSchemaConformanceEchoAllTypesResult(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_48, out, error);
-}
-static const struct VgiSchemaNode node_154 = {"i", "value", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_155[] = {&node_154};
-static const struct VgiSchemaNode node_155 = {"+s", "", NULL, 0, 1, children_155, NULL};
-int VgiSchemaConformanceEchoAnnotatedOptionalIntParams(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_153 = {"g", "a", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_154 = {"g", "b", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_155[] = {&node_153, &node_154};
+static const struct VgiSchemaNode node_155 = {"+s", "", NULL, 0, 2, children_155, NULL};
+int VgiSchemaConformanceAddFloatsParams(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_155, out, error);
 }
-static const struct VgiSchemaNode node_156 = {"i", "result", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode node_156 = {"g", "result", NULL, 0, 0, NULL, NULL};
 static const struct VgiSchemaNode *const children_157[] = {&node_156};
 static const struct VgiSchemaNode node_157 = {"+s", "", NULL, 0, 1, children_157, NULL};
-int VgiSchemaConformanceEchoAnnotatedOptionalIntEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceAddFloatsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_157, out, error);
 }
-static const struct VgiSchemaNode node_158 = {"b", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_159[] = {&node_158};
-static const struct VgiSchemaNode node_159 = {"+s", "", NULL, 0, 1, children_159, NULL};
+static const struct VgiSchemaNode node_158 = {"+s", "", NULL, 0, 0, NULL, NULL};
+int VgiSchemaConformanceCancelProbeCountersParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+static const struct VgiSchemaNode *const children_159[] = {&node_33};
+static const struct VgiSchemaNode node_159 = {"+l", "result", NULL, 0, 1, children_159, NULL};
+static const struct VgiSchemaNode *const children_160[] = {&node_159};
+static const struct VgiSchemaNode node_160 = {"+s", "", NULL, 0, 1, children_160, NULL};
+int VgiSchemaConformanceCancelProbeCountersEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_160, out, error);
+}
+int VgiSchemaConformanceCancellableExchangeParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+int VgiSchemaConformanceCancellableProducerParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+int VgiSchemaConformanceCloseCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+static const struct VgiSchemaNode node_161 = {"l", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_162[] = {&node_161};
+static const struct VgiSchemaNode node_162 = {"+s", "", NULL, 0, 1, children_162, NULL};
+int VgiSchemaConformanceCloseCounterEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_162, out, error);
+}
+static const struct VgiSchemaNode node_163 = {"u", "prefix", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_164 = {"u", "suffix", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_165 = {"u", "separator", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_166[] = {&node_163, &node_164, &node_165};
+static const struct VgiSchemaNode node_166 = {"+s", "", NULL, 0, 3, children_166, NULL};
+int VgiSchemaConformanceConcatenateParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_166, out, error);
+}
+static const struct VgiSchemaNode node_167 = {"u", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_168[] = {&node_167};
+static const struct VgiSchemaNode node_168 = {"+s", "", NULL, 0, 1, children_168, NULL};
+int VgiSchemaConformanceConcatenateEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+static const struct VgiSchemaNode node_169 = {"z", "data", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_170[] = {&node_169};
+static const struct VgiSchemaNode node_170 = {"+s", "", NULL, 0, 1, children_170, NULL};
+int VgiSchemaConformanceEchoAllTypesParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_170, out, error);
+}
+static const struct VgiSchemaNode node_171 = {"z", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_172[] = {&node_171};
+static const struct VgiSchemaNode node_172 = {"+s", "", NULL, 0, 1, children_172, NULL};
+int VgiSchemaConformanceEchoAllTypesEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_172, out, error);
+}
+int VgiSchemaConformanceEchoAllTypesResult(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_55, out, error);
+}
+static const struct VgiSchemaNode node_173 = {"i", "value", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_174[] = {&node_173};
+static const struct VgiSchemaNode node_174 = {"+s", "", NULL, 0, 1, children_174, NULL};
+int VgiSchemaConformanceEchoAnnotatedOptionalIntParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_174, out, error);
+}
+static const struct VgiSchemaNode node_175 = {"i", "result", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_176[] = {&node_175};
+static const struct VgiSchemaNode node_176 = {"+s", "", NULL, 0, 1, children_176, NULL};
+int VgiSchemaConformanceEchoAnnotatedOptionalIntEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_176, out, error);
+}
+static const struct VgiSchemaNode node_177 = {"b", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_178[] = {&node_177};
+static const struct VgiSchemaNode node_178 = {"+s", "", NULL, 0, 1, children_178, NULL};
 int VgiSchemaConformanceEchoBoolParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_159, out, error);
+    return VgiSchemaBuild(&node_178, out, error);
 }
-static const struct VgiSchemaNode node_160 = {"b", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_161[] = {&node_160};
-static const struct VgiSchemaNode node_161 = {"+s", "", NULL, 0, 1, children_161, NULL};
+static const struct VgiSchemaNode node_179 = {"b", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_180[] = {&node_179};
+static const struct VgiSchemaNode node_180 = {"+s", "", NULL, 0, 1, children_180, NULL};
 int VgiSchemaConformanceEchoBoolEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_161, out, error);
+    return VgiSchemaBuild(&node_180, out, error);
 }
-static const struct VgiSchemaNode node_162 = {"z", "box", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_163[] = {&node_162};
-static const struct VgiSchemaNode node_163 = {"+s", "", NULL, 0, 1, children_163, NULL};
+static const struct VgiSchemaNode node_181 = {"z", "box", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_182[] = {&node_181};
+static const struct VgiSchemaNode node_182 = {"+s", "", NULL, 0, 1, children_182, NULL};
 int VgiSchemaConformanceEchoBoundingBoxParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_163, out, error);
+    return VgiSchemaBuild(&node_182, out, error);
 }
 int VgiSchemaConformanceEchoBoundingBoxEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
+    return VgiSchemaBuild(&node_172, out, error);
 }
 int VgiSchemaConformanceEchoBoundingBoxResult(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_20, out, error);
+    return VgiSchemaBuild(&node_27, out, error);
 }
 int VgiSchemaConformanceEchoBytesParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_151, out, error);
+    return VgiSchemaBuild(&node_170, out, error);
 }
 int VgiSchemaConformanceEchoBytesEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
+    return VgiSchemaBuild(&node_172, out, error);
 }
 int VgiSchemaConformanceEchoContainerWideTypesParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_151, out, error);
+    return VgiSchemaBuild(&node_170, out, error);
 }
 int VgiSchemaConformanceEchoContainerWideTypesEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
+    return VgiSchemaBuild(&node_172, out, error);
 }
 int VgiSchemaConformanceEchoContainerWideTypesResult(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_81, out, error);
-}
-static const struct VgiSchemaNode node_164 = {"tdD", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_165[] = {&node_164};
-static const struct VgiSchemaNode node_165 = {"+s", "", NULL, 0, 1, children_165, NULL};
-int VgiSchemaConformanceEchoDateParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_165, out, error);
-}
-static const struct VgiSchemaNode node_166 = {"tdD", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_167[] = {&node_166};
-static const struct VgiSchemaNode node_167 = {"+s", "", NULL, 0, 1, children_167, NULL};
-int VgiSchemaConformanceEchoDateEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_167, out, error);
-}
-static const struct VgiSchemaNode node_168 = {"d:20,4", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_169[] = {&node_168};
-static const struct VgiSchemaNode node_169 = {"+s", "", NULL, 0, 1, children_169, NULL};
-int VgiSchemaConformanceEchoDecimalParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_169, out, error);
-}
-static const struct VgiSchemaNode node_170 = {"d:20,4", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_171[] = {&node_170};
-static const struct VgiSchemaNode node_171 = {"+s", "", NULL, 0, 1, children_171, NULL};
-int VgiSchemaConformanceEchoDecimalEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_171, out, error);
-}
-int VgiSchemaConformanceEchoDeepNestedParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_151, out, error);
-}
-int VgiSchemaConformanceEchoDeepNestedEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
-}
-int VgiSchemaConformanceEchoDeepNestedResult(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_88, out, error);
 }
-static const struct VgiSchemaNode *const children_172[] = {&node_31};
-static const struct VgiSchemaNode node_172 = {"+m", "mapping", NULL, 0, 1, children_172, NULL};
-static const struct VgiSchemaNode *const children_173[] = {&node_172};
-static const struct VgiSchemaNode node_173 = {"+s", "", NULL, 0, 1, children_173, NULL};
+static const struct VgiSchemaNode node_183 = {"tdD", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_184[] = {&node_183};
+static const struct VgiSchemaNode node_184 = {"+s", "", NULL, 0, 1, children_184, NULL};
+int VgiSchemaConformanceEchoDateParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_184, out, error);
+}
+static const struct VgiSchemaNode node_185 = {"tdD", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_186[] = {&node_185};
+static const struct VgiSchemaNode node_186 = {"+s", "", NULL, 0, 1, children_186, NULL};
+int VgiSchemaConformanceEchoDateEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_186, out, error);
+}
+static const struct VgiSchemaNode node_187 = {"d:20,4", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_188[] = {&node_187};
+static const struct VgiSchemaNode node_188 = {"+s", "", NULL, 0, 1, children_188, NULL};
+int VgiSchemaConformanceEchoDecimalParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_188, out, error);
+}
+static const struct VgiSchemaNode node_189 = {"d:20,4", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_190[] = {&node_189};
+static const struct VgiSchemaNode node_190 = {"+s", "", NULL, 0, 1, children_190, NULL};
+int VgiSchemaConformanceEchoDecimalEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_190, out, error);
+}
+int VgiSchemaConformanceEchoDeepNestedParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_170, out, error);
+}
+int VgiSchemaConformanceEchoDeepNestedEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_172, out, error);
+}
+int VgiSchemaConformanceEchoDeepNestedResult(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_95, out, error);
+}
+static const struct VgiSchemaNode *const children_191[] = {&node_38};
+static const struct VgiSchemaNode node_191 = {"+m", "mapping", NULL, 0, 1, children_191, NULL};
+static const struct VgiSchemaNode *const children_192[] = {&node_191};
+static const struct VgiSchemaNode node_192 = {"+s", "", NULL, 0, 1, children_192, NULL};
 int VgiSchemaConformanceEchoDictParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_173, out, error);
+    return VgiSchemaBuild(&node_192, out, error);
 }
-static const struct VgiSchemaNode *const children_174[] = {&node_31};
-static const struct VgiSchemaNode node_174 = {"+m", "result", NULL, 0, 1, children_174, NULL};
-static const struct VgiSchemaNode *const children_175[] = {&node_174};
-static const struct VgiSchemaNode node_175 = {"+s", "", NULL, 0, 1, children_175, NULL};
+static const struct VgiSchemaNode *const children_193[] = {&node_38};
+static const struct VgiSchemaNode node_193 = {"+m", "result", NULL, 0, 1, children_193, NULL};
+static const struct VgiSchemaNode *const children_194[] = {&node_193};
+static const struct VgiSchemaNode node_194 = {"+s", "", NULL, 0, 1, children_194, NULL};
 int VgiSchemaConformanceEchoDictEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_175, out, error);
+    return VgiSchemaBuild(&node_194, out, error);
 }
-static const struct VgiSchemaNode node_176 = {"s", "value", NULL, 0, 0, NULL, &node_33};
-static const struct VgiSchemaNode *const children_177[] = {&node_176};
-static const struct VgiSchemaNode node_177 = {"+s", "", NULL, 0, 1, children_177, NULL};
+static const struct VgiSchemaNode node_195 = {"s", "value", NULL, 0, 0, NULL, &node_40};
+static const struct VgiSchemaNode *const children_196[] = {&node_195};
+static const struct VgiSchemaNode node_196 = {"+s", "", NULL, 0, 1, children_196, NULL};
 int VgiSchemaConformanceEchoDictEncodedStringParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_177, out, error);
+    return VgiSchemaBuild(&node_196, out, error);
 }
-static const struct VgiSchemaNode node_178 = {"s", "result", NULL, 0, 0, NULL, &node_33};
-static const struct VgiSchemaNode *const children_179[] = {&node_178};
-static const struct VgiSchemaNode node_179 = {"+s", "", NULL, 0, 1, children_179, NULL};
+static const struct VgiSchemaNode node_197 = {"s", "result", NULL, 0, 0, NULL, &node_40};
+static const struct VgiSchemaNode *const children_198[] = {&node_197};
+static const struct VgiSchemaNode node_198 = {"+s", "", NULL, 0, 1, children_198, NULL};
 int VgiSchemaConformanceEchoDictEncodedStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_179, out, error);
+    return VgiSchemaBuild(&node_198, out, error);
 }
-static const struct VgiSchemaNode node_180 = {"tDu", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_181[] = {&node_180};
-static const struct VgiSchemaNode node_181 = {"+s", "", NULL, 0, 1, children_181, NULL};
+static const struct VgiSchemaNode node_199 = {"tDu", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_200[] = {&node_199};
+static const struct VgiSchemaNode node_200 = {"+s", "", NULL, 0, 1, children_200, NULL};
 int VgiSchemaConformanceEchoDurationParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_181, out, error);
+    return VgiSchemaBuild(&node_200, out, error);
 }
-static const struct VgiSchemaNode node_182 = {"tDu", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_183[] = {&node_182};
-static const struct VgiSchemaNode node_183 = {"+s", "", NULL, 0, 1, children_183, NULL};
+static const struct VgiSchemaNode node_201 = {"tDu", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_202[] = {&node_201};
+static const struct VgiSchemaNode node_202 = {"+s", "", NULL, 0, 1, children_202, NULL};
 int VgiSchemaConformanceEchoDurationEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_183, out, error);
+    return VgiSchemaBuild(&node_202, out, error);
 }
 int VgiSchemaConformanceEchoEmbeddedArrowParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_151, out, error);
+    return VgiSchemaBuild(&node_170, out, error);
 }
 int VgiSchemaConformanceEchoEmbeddedArrowEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
+    return VgiSchemaBuild(&node_172, out, error);
 }
 int VgiSchemaConformanceEchoEmbeddedArrowResult(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_91, out, error);
+    return VgiSchemaBuild(&node_98, out, error);
 }
-static const struct VgiSchemaNode node_184 = {"s", "status", NULL, 0, 0, NULL, &node_33};
-static const struct VgiSchemaNode *const children_185[] = {&node_184};
-static const struct VgiSchemaNode node_185 = {"+s", "", NULL, 0, 1, children_185, NULL};
+static const struct VgiSchemaNode node_203 = {"s", "status", NULL, 0, 0, NULL, &node_40};
+static const struct VgiSchemaNode *const children_204[] = {&node_203};
+static const struct VgiSchemaNode node_204 = {"+s", "", NULL, 0, 1, children_204, NULL};
 int VgiSchemaConformanceEchoEnumParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_185, out, error);
+    return VgiSchemaBuild(&node_204, out, error);
 }
 int VgiSchemaConformanceEchoEnumEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_179, out, error);
+    return VgiSchemaBuild(&node_198, out, error);
 }
-static const struct VgiSchemaNode node_186 = {"w:8", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_187[] = {&node_186};
-static const struct VgiSchemaNode node_187 = {"+s", "", NULL, 0, 1, children_187, NULL};
+static const struct VgiSchemaNode node_205 = {"w:8", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_206[] = {&node_205};
+static const struct VgiSchemaNode node_206 = {"+s", "", NULL, 0, 1, children_206, NULL};
 int VgiSchemaConformanceEchoFixedBinaryParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_187, out, error);
+    return VgiSchemaBuild(&node_206, out, error);
 }
-static const struct VgiSchemaNode node_188 = {"w:8", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_189[] = {&node_188};
-static const struct VgiSchemaNode node_189 = {"+s", "", NULL, 0, 1, children_189, NULL};
+static const struct VgiSchemaNode node_207 = {"w:8", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_208[] = {&node_207};
+static const struct VgiSchemaNode node_208 = {"+s", "", NULL, 0, 1, children_208, NULL};
 int VgiSchemaConformanceEchoFixedBinaryEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_189, out, error);
+    return VgiSchemaBuild(&node_208, out, error);
 }
-static const struct VgiSchemaNode node_190 = {"g", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_191[] = {&node_190};
-static const struct VgiSchemaNode node_191 = {"+s", "", NULL, 0, 1, children_191, NULL};
+static const struct VgiSchemaNode node_209 = {"g", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_210[] = {&node_209};
+static const struct VgiSchemaNode node_210 = {"+s", "", NULL, 0, 1, children_210, NULL};
 int VgiSchemaConformanceEchoFloatParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_191, out, error);
+    return VgiSchemaBuild(&node_210, out, error);
 }
 int VgiSchemaConformanceEchoFloatEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_138, out, error);
+    return VgiSchemaBuild(&node_157, out, error);
 }
-static const struct VgiSchemaNode node_192 = {"f", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_193[] = {&node_192};
-static const struct VgiSchemaNode node_193 = {"+s", "", NULL, 0, 1, children_193, NULL};
+static const struct VgiSchemaNode node_211 = {"f", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_212[] = {&node_211};
+static const struct VgiSchemaNode node_212 = {"+s", "", NULL, 0, 1, children_212, NULL};
 int VgiSchemaConformanceEchoFloat32Params(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_193, out, error);
+    return VgiSchemaBuild(&node_212, out, error);
 }
-static const struct VgiSchemaNode node_194 = {"f", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_195[] = {&node_194};
-static const struct VgiSchemaNode node_195 = {"+s", "", NULL, 0, 1, children_195, NULL};
+static const struct VgiSchemaNode node_213 = {"f", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_214[] = {&node_213};
+static const struct VgiSchemaNode node_214 = {"+s", "", NULL, 0, 1, children_214, NULL};
 int VgiSchemaConformanceEchoFloat32Envelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_195, out, error);
+    return VgiSchemaBuild(&node_214, out, error);
 }
-static const struct VgiSchemaNode node_196 = {"l", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_197[] = {&node_196};
-static const struct VgiSchemaNode node_197 = {"+s", "", NULL, 0, 1, children_197, NULL};
+static const struct VgiSchemaNode node_215 = {"l", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_216[] = {&node_215};
+static const struct VgiSchemaNode node_216 = {"+s", "", NULL, 0, 1, children_216, NULL};
 int VgiSchemaConformanceEchoIntParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_197, out, error);
+    return VgiSchemaBuild(&node_216, out, error);
 }
 int VgiSchemaConformanceEchoIntEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_143, out, error);
+    return VgiSchemaBuild(&node_162, out, error);
 }
-static const struct VgiSchemaNode node_198 = {"s", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_199[] = {&node_198};
-static const struct VgiSchemaNode node_199 = {"+s", "", NULL, 0, 1, children_199, NULL};
+static const struct VgiSchemaNode node_217 = {"s", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_218[] = {&node_217};
+static const struct VgiSchemaNode node_218 = {"+s", "", NULL, 0, 1, children_218, NULL};
 int VgiSchemaConformanceEchoInt16Params(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_199, out, error);
+    return VgiSchemaBuild(&node_218, out, error);
 }
-static const struct VgiSchemaNode node_200 = {"s", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_201[] = {&node_200};
-static const struct VgiSchemaNode node_201 = {"+s", "", NULL, 0, 1, children_201, NULL};
+static const struct VgiSchemaNode node_219 = {"s", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_220[] = {&node_219};
+static const struct VgiSchemaNode node_220 = {"+s", "", NULL, 0, 1, children_220, NULL};
 int VgiSchemaConformanceEchoInt16Envelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_201, out, error);
+    return VgiSchemaBuild(&node_220, out, error);
 }
-static const struct VgiSchemaNode node_202 = {"i", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_203[] = {&node_202};
-static const struct VgiSchemaNode node_203 = {"+s", "", NULL, 0, 1, children_203, NULL};
+static const struct VgiSchemaNode node_221 = {"i", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_222[] = {&node_221};
+static const struct VgiSchemaNode node_222 = {"+s", "", NULL, 0, 1, children_222, NULL};
 int VgiSchemaConformanceEchoInt32Params(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_203, out, error);
+    return VgiSchemaBuild(&node_222, out, error);
 }
-static const struct VgiSchemaNode node_204 = {"i", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_205[] = {&node_204};
-static const struct VgiSchemaNode node_205 = {"+s", "", NULL, 0, 1, children_205, NULL};
+static const struct VgiSchemaNode node_223 = {"i", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_224[] = {&node_223};
+static const struct VgiSchemaNode node_224 = {"+s", "", NULL, 0, 1, children_224, NULL};
 int VgiSchemaConformanceEchoInt32Envelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_205, out, error);
+    return VgiSchemaBuild(&node_224, out, error);
 }
-static const struct VgiSchemaNode node_206 = {"c", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_207[] = {&node_206};
-static const struct VgiSchemaNode node_207 = {"+s", "", NULL, 0, 1, children_207, NULL};
+static const struct VgiSchemaNode node_225 = {"c", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_226[] = {&node_225};
+static const struct VgiSchemaNode node_226 = {"+s", "", NULL, 0, 1, children_226, NULL};
 int VgiSchemaConformanceEchoInt8Params(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_207, out, error);
+    return VgiSchemaBuild(&node_226, out, error);
 }
-static const struct VgiSchemaNode node_208 = {"c", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_209[] = {&node_208};
-static const struct VgiSchemaNode node_209 = {"+s", "", NULL, 0, 1, children_209, NULL};
+static const struct VgiSchemaNode node_227 = {"c", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_228[] = {&node_227};
+static const struct VgiSchemaNode node_228 = {"+s", "", NULL, 0, 1, children_228, NULL};
 int VgiSchemaConformanceEchoInt8Envelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_209, out, error);
+    return VgiSchemaBuild(&node_228, out, error);
 }
-static const struct VgiSchemaNode node_210 = {"Z", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_211[] = {&node_210};
-static const struct VgiSchemaNode node_211 = {"+s", "", NULL, 0, 1, children_211, NULL};
+static const struct VgiSchemaNode node_229 = {"Z", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_230[] = {&node_229};
+static const struct VgiSchemaNode node_230 = {"+s", "", NULL, 0, 1, children_230, NULL};
 int VgiSchemaConformanceEchoLargeBinaryParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_211, out, error);
+    return VgiSchemaBuild(&node_230, out, error);
 }
-static const struct VgiSchemaNode node_212 = {"Z", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_213[] = {&node_212};
-static const struct VgiSchemaNode node_213 = {"+s", "", NULL, 0, 1, children_213, NULL};
+static const struct VgiSchemaNode node_231 = {"Z", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_232[] = {&node_231};
+static const struct VgiSchemaNode node_232 = {"+s", "", NULL, 0, 1, children_232, NULL};
 int VgiSchemaConformanceEchoLargeBinaryEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_213, out, error);
+    return VgiSchemaBuild(&node_232, out, error);
 }
-static const struct VgiSchemaNode node_214 = {"U", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_215[] = {&node_214};
-static const struct VgiSchemaNode node_215 = {"+s", "", NULL, 0, 1, children_215, NULL};
+static const struct VgiSchemaNode node_233 = {"U", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_234[] = {&node_233};
+static const struct VgiSchemaNode node_234 = {"+s", "", NULL, 0, 1, children_234, NULL};
 int VgiSchemaConformanceEchoLargeStringParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_215, out, error);
+    return VgiSchemaBuild(&node_234, out, error);
 }
-static const struct VgiSchemaNode node_216 = {"U", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_217[] = {&node_216};
-static const struct VgiSchemaNode node_217 = {"+s", "", NULL, 0, 1, children_217, NULL};
+static const struct VgiSchemaNode node_235 = {"U", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_236[] = {&node_235};
+static const struct VgiSchemaNode node_236 = {"+s", "", NULL, 0, 1, children_236, NULL};
 int VgiSchemaConformanceEchoLargeStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_217, out, error);
+    return VgiSchemaBuild(&node_236, out, error);
 }
-static const struct VgiSchemaNode *const children_218[] = {&node_28};
-static const struct VgiSchemaNode node_218 = {"+l", "values", NULL, 0, 1, children_218, NULL};
-static const struct VgiSchemaNode *const children_219[] = {&node_218};
-static const struct VgiSchemaNode node_219 = {"+s", "", NULL, 0, 1, children_219, NULL};
+static const struct VgiSchemaNode *const children_237[] = {&node_35};
+static const struct VgiSchemaNode node_237 = {"+l", "values", NULL, 0, 1, children_237, NULL};
+static const struct VgiSchemaNode *const children_238[] = {&node_237};
+static const struct VgiSchemaNode node_238 = {"+s", "", NULL, 0, 1, children_238, NULL};
 int VgiSchemaConformanceEchoListParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_219, out, error);
+    return VgiSchemaBuild(&node_238, out, error);
 }
-static const struct VgiSchemaNode *const children_220[] = {&node_28};
-static const struct VgiSchemaNode node_220 = {"+l", "result", NULL, 0, 1, children_220, NULL};
-static const struct VgiSchemaNode *const children_221[] = {&node_220};
-static const struct VgiSchemaNode node_221 = {"+s", "", NULL, 0, 1, children_221, NULL};
+static const struct VgiSchemaNode *const children_239[] = {&node_35};
+static const struct VgiSchemaNode node_239 = {"+l", "result", NULL, 0, 1, children_239, NULL};
+static const struct VgiSchemaNode *const children_240[] = {&node_239};
+static const struct VgiSchemaNode node_240 = {"+s", "", NULL, 0, 1, children_240, NULL};
 int VgiSchemaConformanceEchoListEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_221, out, error);
+    return VgiSchemaBuild(&node_240, out, error);
 }
-static const struct VgiSchemaNode *const children_222[] = {&node_43};
-static const struct VgiSchemaNode node_222 = {"+l", "matrix", NULL, 0, 1, children_222, NULL};
-static const struct VgiSchemaNode *const children_223[] = {&node_222};
-static const struct VgiSchemaNode node_223 = {"+s", "", NULL, 0, 1, children_223, NULL};
+static const struct VgiSchemaNode *const children_241[] = {&node_50};
+static const struct VgiSchemaNode node_241 = {"+l", "matrix", NULL, 0, 1, children_241, NULL};
+static const struct VgiSchemaNode *const children_242[] = {&node_241};
+static const struct VgiSchemaNode node_242 = {"+s", "", NULL, 0, 1, children_242, NULL};
 int VgiSchemaConformanceEchoNestedListParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_223, out, error);
+    return VgiSchemaBuild(&node_242, out, error);
 }
-static const struct VgiSchemaNode *const children_224[] = {&node_43};
-static const struct VgiSchemaNode node_224 = {"+l", "result", NULL, 0, 1, children_224, NULL};
-static const struct VgiSchemaNode *const children_225[] = {&node_224};
-static const struct VgiSchemaNode node_225 = {"+s", "", NULL, 0, 1, children_225, NULL};
+static const struct VgiSchemaNode *const children_243[] = {&node_50};
+static const struct VgiSchemaNode node_243 = {"+l", "result", NULL, 0, 1, children_243, NULL};
+static const struct VgiSchemaNode *const children_244[] = {&node_243};
+static const struct VgiSchemaNode node_244 = {"+s", "", NULL, 0, 1, children_244, NULL};
 int VgiSchemaConformanceEchoNestedListEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_225, out, error);
+    return VgiSchemaBuild(&node_244, out, error);
 }
 int VgiSchemaConformanceEchoOptionalIntParams(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_3, out, error);
 }
-static const struct VgiSchemaNode node_226 = {"l", "result", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_227[] = {&node_226};
-static const struct VgiSchemaNode node_227 = {"+s", "", NULL, 0, 1, children_227, NULL};
+static const struct VgiSchemaNode node_245 = {"l", "result", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_246[] = {&node_245};
+static const struct VgiSchemaNode node_246 = {"+s", "", NULL, 0, 1, children_246, NULL};
 int VgiSchemaConformanceEchoOptionalIntEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_227, out, error);
+    return VgiSchemaBuild(&node_246, out, error);
 }
-static const struct VgiSchemaNode node_228 = {"z", "point", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_229[] = {&node_228};
-static const struct VgiSchemaNode node_229 = {"+s", "", NULL, 0, 1, children_229, NULL};
+static const struct VgiSchemaNode node_247 = {"z", "point", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_248[] = {&node_247};
+static const struct VgiSchemaNode node_248 = {"+s", "", NULL, 0, 1, children_248, NULL};
 int VgiSchemaConformanceEchoOptionalPointParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_229, out, error);
+    return VgiSchemaBuild(&node_248, out, error);
 }
-static const struct VgiSchemaNode node_230 = {"z", "result", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_231[] = {&node_230};
-static const struct VgiSchemaNode node_231 = {"+s", "", NULL, 0, 1, children_231, NULL};
+static const struct VgiSchemaNode node_249 = {"z", "result", NULL, 2, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_250[] = {&node_249};
+static const struct VgiSchemaNode node_250 = {"+s", "", NULL, 0, 1, children_250, NULL};
 int VgiSchemaConformanceEchoOptionalPointEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_231, out, error);
+    return VgiSchemaBuild(&node_250, out, error);
 }
-static const struct VgiSchemaNode *const children_232[] = {&node_45};
-static const struct VgiSchemaNode node_232 = {"+s", "", NULL, 0, 1, children_232, NULL};
-int VgiSchemaConformanceEchoOptionalStringParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_232, out, error);
-}
-static const struct VgiSchemaNode node_233 = {"u", "result", NULL, 2, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_234[] = {&node_233};
-static const struct VgiSchemaNode node_234 = {"+s", "", NULL, 0, 1, children_234, NULL};
-int VgiSchemaConformanceEchoOptionalStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_234, out, error);
-}
-int VgiSchemaConformanceEchoOuterOptionalNonNullParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_203, out, error);
-}
-int VgiSchemaConformanceEchoOuterOptionalNonNullEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_205, out, error);
-}
-static const struct VgiSchemaNode node_235 = {"z", "point", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_236[] = {&node_235};
-static const struct VgiSchemaNode node_236 = {"+s", "", NULL, 0, 1, children_236, NULL};
-int VgiSchemaConformanceEchoPointParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_236, out, error);
-}
-int VgiSchemaConformanceEchoPointEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
-}
-int VgiSchemaConformanceEchoPointResult(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_16, out, error);
-}
-static const struct VgiSchemaNode *const children_237[] = {&node_92};
-static const struct VgiSchemaNode node_237 = {"+s", "", NULL, 0, 1, children_237, NULL};
-int VgiSchemaConformanceEchoStatusListParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_237, out, error);
-}
-static const struct VgiSchemaNode *const children_238[] = {&node_86};
-static const struct VgiSchemaNode node_238 = {"+l", "result", NULL, 0, 1, children_238, NULL};
-static const struct VgiSchemaNode *const children_239[] = {&node_238};
-static const struct VgiSchemaNode node_239 = {"+s", "", NULL, 0, 1, children_239, NULL};
-int VgiSchemaConformanceEchoStatusListEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_239, out, error);
-}
-static const struct VgiSchemaNode node_240 = {"u", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_241[] = {&node_240};
-static const struct VgiSchemaNode node_241 = {"+s", "", NULL, 0, 1, children_241, NULL};
-int VgiSchemaConformanceEchoStringParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_241, out, error);
-}
-int VgiSchemaConformanceEchoStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
-}
-static const struct VgiSchemaNode node_242 = {"ttu", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_243[] = {&node_242};
-static const struct VgiSchemaNode node_243 = {"+s", "", NULL, 0, 1, children_243, NULL};
-int VgiSchemaConformanceEchoTimeParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_243, out, error);
-}
-static const struct VgiSchemaNode node_244 = {"ttu", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_245[] = {&node_244};
-static const struct VgiSchemaNode node_245 = {"+s", "", NULL, 0, 1, children_245, NULL};
-int VgiSchemaConformanceEchoTimeEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_245, out, error);
-}
-static const struct VgiSchemaNode node_246 = {"tsu:", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_247[] = {&node_246};
-static const struct VgiSchemaNode node_247 = {"+s", "", NULL, 0, 1, children_247, NULL};
-int VgiSchemaConformanceEchoTimestampParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_247, out, error);
-}
-static const struct VgiSchemaNode node_248 = {"tsu:", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_249[] = {&node_248};
-static const struct VgiSchemaNode node_249 = {"+s", "", NULL, 0, 1, children_249, NULL};
-int VgiSchemaConformanceEchoTimestampEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_249, out, error);
-}
-static const struct VgiSchemaNode node_250 = {"tsu:UTC", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_251[] = {&node_250};
+static const struct VgiSchemaNode *const children_251[] = {&node_52};
 static const struct VgiSchemaNode node_251 = {"+s", "", NULL, 0, 1, children_251, NULL};
-int VgiSchemaConformanceEchoTimestampUtcParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoOptionalStringParams(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_251, out, error);
 }
-static const struct VgiSchemaNode node_252 = {"tsu:UTC", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_252 = {"u", "result", NULL, 2, 0, NULL, NULL};
 static const struct VgiSchemaNode *const children_253[] = {&node_252};
 static const struct VgiSchemaNode node_253 = {"+s", "", NULL, 0, 1, children_253, NULL};
-int VgiSchemaConformanceEchoTimestampUtcEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoOptionalStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_253, out, error);
 }
-static const struct VgiSchemaNode node_254 = {"S", "value", NULL, 0, 0, NULL, NULL};
+int VgiSchemaConformanceEchoOuterOptionalNonNullParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_222, out, error);
+}
+int VgiSchemaConformanceEchoOuterOptionalNonNullEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_224, out, error);
+}
+static const struct VgiSchemaNode node_254 = {"z", "point", NULL, 0, 0, NULL, NULL};
 static const struct VgiSchemaNode *const children_255[] = {&node_254};
 static const struct VgiSchemaNode node_255 = {"+s", "", NULL, 0, 1, children_255, NULL};
-int VgiSchemaConformanceEchoUint16Params(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoPointParams(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_255, out, error);
 }
-static const struct VgiSchemaNode node_256 = {"S", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_257[] = {&node_256};
-static const struct VgiSchemaNode node_257 = {"+s", "", NULL, 0, 1, children_257, NULL};
-int VgiSchemaConformanceEchoUint16Envelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_257, out, error);
+int VgiSchemaConformanceEchoPointEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_172, out, error);
 }
-static const struct VgiSchemaNode node_258 = {"I", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_259[] = {&node_258};
-static const struct VgiSchemaNode node_259 = {"+s", "", NULL, 0, 1, children_259, NULL};
-int VgiSchemaConformanceEchoUint32Params(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_259, out, error);
+int VgiSchemaConformanceEchoPointResult(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_23, out, error);
 }
-static const struct VgiSchemaNode node_260 = {"I", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_261[] = {&node_260};
-static const struct VgiSchemaNode node_261 = {"+s", "", NULL, 0, 1, children_261, NULL};
-int VgiSchemaConformanceEchoUint32Envelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_261, out, error);
+static const struct VgiSchemaNode *const children_256[] = {&node_99};
+static const struct VgiSchemaNode node_256 = {"+s", "", NULL, 0, 1, children_256, NULL};
+int VgiSchemaConformanceEchoStatusListParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_256, out, error);
 }
-static const struct VgiSchemaNode node_262 = {"L", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_263[] = {&node_262};
-static const struct VgiSchemaNode node_263 = {"+s", "", NULL, 0, 1, children_263, NULL};
-int VgiSchemaConformanceEchoUint64Params(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_263, out, error);
+static const struct VgiSchemaNode *const children_257[] = {&node_93};
+static const struct VgiSchemaNode node_257 = {"+l", "result", NULL, 0, 1, children_257, NULL};
+static const struct VgiSchemaNode *const children_258[] = {&node_257};
+static const struct VgiSchemaNode node_258 = {"+s", "", NULL, 0, 1, children_258, NULL};
+int VgiSchemaConformanceEchoStatusListEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_258, out, error);
 }
-static const struct VgiSchemaNode node_264 = {"L", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_265[] = {&node_264};
-static const struct VgiSchemaNode node_265 = {"+s", "", NULL, 0, 1, children_265, NULL};
-int VgiSchemaConformanceEchoUint64Envelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_265, out, error);
+static const struct VgiSchemaNode node_259 = {"u", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_260[] = {&node_259};
+static const struct VgiSchemaNode node_260 = {"+s", "", NULL, 0, 1, children_260, NULL};
+int VgiSchemaConformanceEchoStringParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_260, out, error);
 }
-static const struct VgiSchemaNode node_266 = {"C", "value", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_267[] = {&node_266};
-static const struct VgiSchemaNode node_267 = {"+s", "", NULL, 0, 1, children_267, NULL};
-int VgiSchemaConformanceEchoUint8Params(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_267, out, error);
+int VgiSchemaConformanceEchoStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
 }
-static const struct VgiSchemaNode node_268 = {"C", "result", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_269[] = {&node_268};
-static const struct VgiSchemaNode node_269 = {"+s", "", NULL, 0, 1, children_269, NULL};
-int VgiSchemaConformanceEchoUint8Envelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_269, out, error);
+static const struct VgiSchemaNode node_261 = {"ttu", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_262[] = {&node_261};
+static const struct VgiSchemaNode node_262 = {"+s", "", NULL, 0, 1, children_262, NULL};
+int VgiSchemaConformanceEchoTimeParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_262, out, error);
 }
-int VgiSchemaConformanceEchoWideTypesParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_151, out, error);
+static const struct VgiSchemaNode node_263 = {"ttu", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_264[] = {&node_263};
+static const struct VgiSchemaNode node_264 = {"+s", "", NULL, 0, 1, children_264, NULL};
+int VgiSchemaConformanceEchoTimeEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_264, out, error);
 }
-int VgiSchemaConformanceEchoWideTypesEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
+static const struct VgiSchemaNode node_265 = {"tsu:", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_266[] = {&node_265};
+static const struct VgiSchemaNode node_266 = {"+s", "", NULL, 0, 1, children_266, NULL};
+int VgiSchemaConformanceEchoTimestampParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_266, out, error);
 }
-int VgiSchemaConformanceEchoWideTypesResult(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_66, out, error);
+static const struct VgiSchemaNode node_267 = {"tsu:", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_268[] = {&node_267};
+static const struct VgiSchemaNode node_268 = {"+s", "", NULL, 0, 1, children_268, NULL};
+int VgiSchemaConformanceEchoTimestampEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_268, out, error);
 }
-int VgiSchemaConformanceEchoWithAllLogLevelsParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_241, out, error);
-}
-int VgiSchemaConformanceEchoWithAllLogLevelsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
-}
-int VgiSchemaConformanceEchoWithInfoLogParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_241, out, error);
-}
-int VgiSchemaConformanceEchoWithInfoLogEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
-}
-int VgiSchemaConformanceEchoWithLogExtrasParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_241, out, error);
-}
-int VgiSchemaConformanceEchoWithLogExtrasEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
-}
-int VgiSchemaConformanceEchoWithMultiLogsParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_241, out, error);
-}
-int VgiSchemaConformanceEchoWithMultiLogsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
-}
-int VgiSchemaConformanceExchangeAccumulateParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-int VgiSchemaConformanceExchangeCastCompatibleParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-int VgiSchemaConformanceExchangeErrorOnInitParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-static const struct VgiSchemaNode *const children_270[] = {&node_126};
+static const struct VgiSchemaNode node_269 = {"tsu:UTC", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_270[] = {&node_269};
 static const struct VgiSchemaNode node_270 = {"+s", "", NULL, 0, 1, children_270, NULL};
-int VgiSchemaConformanceExchangeErrorOnNthParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoTimestampUtcParams(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_270, out, error);
 }
-int VgiSchemaConformanceExchangeInputMetadataParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-int VgiSchemaConformanceExchangeOversizedParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_128, out, error);
-}
-int VgiSchemaConformanceExchangeScaleParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_120, out, error);
-}
-int VgiSchemaConformanceExchangeSessionCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-int VgiSchemaConformanceExchangeWithHeaderParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_120, out, error);
-}
-int VgiSchemaConformanceExchangeWithHeaderHeader(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_104, out, error);
-}
-int VgiSchemaConformanceExchangeWithLogsParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-static const struct VgiSchemaNode node_271 = {"l", "seed", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_272[] = {&node_271, &node_119};
-static const struct VgiSchemaNode node_272 = {"+s", "", NULL, 0, 2, children_272, NULL};
-int VgiSchemaConformanceExchangeWithRichHeaderParams(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_271 = {"tsu:UTC", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_272[] = {&node_271};
+static const struct VgiSchemaNode node_272 = {"+s", "", NULL, 0, 1, children_272, NULL};
+int VgiSchemaConformanceEchoTimestampUtcEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_272, out, error);
 }
-int VgiSchemaConformanceExchangeWithRichHeaderHeader(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_130, out, error);
-}
-int VgiSchemaConformanceExchangeZeroColumnsParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-static const struct VgiSchemaNode node_273 = {"l", "by", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_273 = {"S", "value", NULL, 0, 0, NULL, NULL};
 static const struct VgiSchemaNode *const children_274[] = {&node_273};
 static const struct VgiSchemaNode node_274 = {"+s", "", NULL, 0, 1, children_274, NULL};
-int VgiSchemaConformanceIncrementCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoUint16Params(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_274, out, error);
 }
-int VgiSchemaConformanceIncrementCounterEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_143, out, error);
-}
-int VgiSchemaConformanceInspectPointParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_236, out, error);
-}
-int VgiSchemaConformanceInspectPointEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
-}
-static const struct VgiSchemaNode node_275 = {"l", "initial", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_275 = {"S", "result", NULL, 0, 0, NULL, NULL};
 static const struct VgiSchemaNode *const children_276[] = {&node_275};
 static const struct VgiSchemaNode node_276 = {"+s", "", NULL, 0, 1, children_276, NULL};
-int VgiSchemaConformanceOpenCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoUint16Envelope(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_276, out, error);
 }
-int VgiSchemaConformanceOpenCounterEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_143, out, error);
-}
-static const struct VgiSchemaNode node_277 = {"l", "target_bytes", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_277 = {"I", "value", NULL, 0, 0, NULL, NULL};
 static const struct VgiSchemaNode *const children_278[] = {&node_277};
 static const struct VgiSchemaNode node_278 = {"+s", "", NULL, 0, 1, children_278, NULL};
-int VgiSchemaConformanceOversizedUnaryParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoUint32Params(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_278, out, error);
 }
-int VgiSchemaConformanceOversizedUnaryEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
-}
-static const struct VgiSchemaNode *const children_279[] = {&node_92, &node_93, &node_96};
-static const struct VgiSchemaNode node_279 = {"+s", "", NULL, 0, 3, children_279, NULL};
-int VgiSchemaConformancePackNestedContainersParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_279, out, error);
-}
-int VgiSchemaConformancePackNestedContainersEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_153, out, error);
-}
-int VgiSchemaConformancePackNestedContainersResult(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_101, out, error);
-}
-static const struct VgiSchemaNode *const children_280[] = {&node_105, &node_112};
-static const struct VgiSchemaNode node_280 = {"+s", "", NULL, 0, 2, children_280, NULL};
-int VgiSchemaConformanceProduceAnnotatedBatchesParams(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_279 = {"I", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_280[] = {&node_279};
+static const struct VgiSchemaNode node_280 = {"+s", "", NULL, 0, 1, children_280, NULL};
+int VgiSchemaConformanceEchoUint32Envelope(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_280, out, error);
 }
-static const struct VgiSchemaNode *const children_281[] = {&node_271, &node_105, &node_131, &node_132};
-static const struct VgiSchemaNode node_281 = {"+s", "", NULL, 0, 4, children_281, NULL};
-int VgiSchemaConformanceProduceDynamicSchemaParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_281, out, error);
-}
-int VgiSchemaConformanceProduceDynamicSchemaHeader(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_130, out, error);
-}
-int VgiSchemaConformanceProduceEmptyParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-static const struct VgiSchemaNode *const children_282[] = {&node_117};
+static const struct VgiSchemaNode node_281 = {"L", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_282[] = {&node_281};
 static const struct VgiSchemaNode node_282 = {"+s", "", NULL, 0, 1, children_282, NULL};
-int VgiSchemaConformanceProduceErrorMidStreamParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoUint64Params(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_282, out, error);
 }
-int VgiSchemaConformanceProduceErrorOnInitParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
-}
-static const struct VgiSchemaNode *const children_283[] = {&node_112, &node_113};
-static const struct VgiSchemaNode node_283 = {"+s", "", NULL, 0, 2, children_283, NULL};
-int VgiSchemaConformanceProduceLargeBatchesParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_283, out, error);
-}
-static const struct VgiSchemaNode *const children_284[] = {&node_105};
+static const struct VgiSchemaNode node_283 = {"L", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_284[] = {&node_283};
 static const struct VgiSchemaNode node_284 = {"+s", "", NULL, 0, 1, children_284, NULL};
-int VgiSchemaConformanceProduceNParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceEchoUint64Envelope(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_284, out, error);
 }
-int VgiSchemaConformanceProduceOversizedBatchParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_128, out, error);
+static const struct VgiSchemaNode node_285 = {"C", "value", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_286[] = {&node_285};
+static const struct VgiSchemaNode node_286 = {"+s", "", NULL, 0, 1, children_286, NULL};
+int VgiSchemaConformanceEchoUint8Params(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_286, out, error);
 }
-int VgiSchemaConformanceProduceSingleParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
+static const struct VgiSchemaNode node_287 = {"C", "result", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_288[] = {&node_287};
+static const struct VgiSchemaNode node_288 = {"+s", "", NULL, 0, 1, children_288, NULL};
+int VgiSchemaConformanceEchoUint8Envelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_288, out, error);
 }
-int VgiSchemaConformanceProduceTickMetadataParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_284, out, error);
+int VgiSchemaConformanceEchoWideTypesParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_170, out, error);
 }
-int VgiSchemaConformanceProduceWithHeaderParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_284, out, error);
+int VgiSchemaConformanceEchoWideTypesEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_172, out, error);
 }
-int VgiSchemaConformanceProduceWithHeaderHeader(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_104, out, error);
+int VgiSchemaConformanceEchoWideTypesResult(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_73, out, error);
 }
-int VgiSchemaConformanceProduceWithHeaderAndLogsParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_284, out, error);
+int VgiSchemaConformanceEchoWithAllLogLevelsParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_260, out, error);
 }
-int VgiSchemaConformanceProduceWithHeaderAndLogsHeader(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_104, out, error);
+int VgiSchemaConformanceEchoWithAllLogLevelsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
 }
-int VgiSchemaConformanceProduceWithLogsParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_284, out, error);
+int VgiSchemaConformanceEchoWithInfoLogParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_260, out, error);
 }
-static const struct VgiSchemaNode *const children_285[] = {&node_271, &node_105};
-static const struct VgiSchemaNode node_285 = {"+s", "", NULL, 0, 2, children_285, NULL};
-int VgiSchemaConformanceProduceWithRichHeaderParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_285, out, error);
+int VgiSchemaConformanceEchoWithInfoLogEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
 }
-int VgiSchemaConformanceProduceWithRichHeaderHeader(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_130, out, error);
+int VgiSchemaConformanceEchoWithLogExtrasParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_260, out, error);
 }
-static const struct VgiSchemaNode node_286 = {"b", "include_sha256", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_287[] = {&node_240, &node_286};
-static const struct VgiSchemaNode node_287 = {"+s", "", NULL, 0, 2, children_287, NULL};
-int VgiSchemaConformancePublishedStringParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_287, out, error);
+int VgiSchemaConformanceEchoWithLogExtrasEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
 }
-int VgiSchemaConformancePublishedStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
+int VgiSchemaConformanceEchoWithMultiLogsParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_260, out, error);
 }
-static const struct VgiSchemaNode node_288 = {"u", "message", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_289[] = {&node_288};
+int VgiSchemaConformanceEchoWithMultiLogsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+int VgiSchemaConformanceExchangeAccumulateParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+int VgiSchemaConformanceExchangeCastCompatibleParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+int VgiSchemaConformanceExchangeErrorOnInitParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+static const struct VgiSchemaNode *const children_289[] = {&node_133};
 static const struct VgiSchemaNode node_289 = {"+s", "", NULL, 0, 1, children_289, NULL};
-int VgiSchemaConformanceRaiseRuntimeErrorParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceExchangeErrorOnNthParams(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_289, out, error);
 }
-int VgiSchemaConformanceRaiseRuntimeErrorEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
+int VgiSchemaConformanceExchangeInputMetadataParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
 }
-int VgiSchemaConformanceRaiseTypeErrorParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_289, out, error);
+int VgiSchemaConformanceExchangeOversizedParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_135, out, error);
 }
-int VgiSchemaConformanceRaiseTypeErrorEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
+int VgiSchemaConformanceExchangeScaleParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_127, out, error);
 }
-int VgiSchemaConformanceRaiseValueErrorParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_289, out, error);
+int VgiSchemaConformanceExchangeSessionCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
 }
-int VgiSchemaConformanceRaiseValueErrorEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
+int VgiSchemaConformanceExchangeWithHeaderParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_127, out, error);
 }
-int VgiSchemaConformanceResetCancelProbeParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
+int VgiSchemaConformanceExchangeWithHeaderHeader(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_111, out, error);
 }
-int VgiSchemaConformanceStreamSessionCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_284, out, error);
+int VgiSchemaConformanceExchangeWithLogsParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
 }
-int VgiSchemaConformanceVoidNoopParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
+static const struct VgiSchemaNode node_290 = {"l", "seed", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_291[] = {&node_290, &node_126};
+static const struct VgiSchemaNode node_291 = {"+s", "", NULL, 0, 2, children_291, NULL};
+int VgiSchemaConformanceExchangeWithRichHeaderParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_291, out, error);
 }
-int VgiSchemaConformanceVoidWithParamParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_197, out, error);
+int VgiSchemaConformanceExchangeWithRichHeaderHeader(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_137, out, error);
 }
-static const struct VgiSchemaNode node_290 = {"l", "required", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_291 = {"u", "optional_str", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_292 = {"l", "optional_int", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_293[] = {&node_290, &node_291, &node_292};
-static const struct VgiSchemaNode node_293 = {"+s", "", NULL, 0, 3, children_293, NULL};
-int VgiSchemaConformanceWithDefaultsParams(struct ArrowSchema *out, struct ArrowError *error) {
+int VgiSchemaConformanceExchangeZeroColumnsParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+static const struct VgiSchemaNode node_292 = {"l", "by", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_293[] = {&node_292};
+static const struct VgiSchemaNode node_293 = {"+s", "", NULL, 0, 1, children_293, NULL};
+int VgiSchemaConformanceIncrementCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_293, out, error);
 }
-int VgiSchemaConformanceWithDefaultsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
+int VgiSchemaConformanceIncrementCounterEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_162, out, error);
 }
-int VgiSchemaSecondaryEchoStringParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_241, out, error);
+int VgiSchemaConformanceInspectPointParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_255, out, error);
 }
-int VgiSchemaSecondaryEchoStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_149, out, error);
+int VgiSchemaConformanceInspectPointEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
 }
-static const struct VgiSchemaNode node_294 = {"u", "code", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_295 = {"u", "kind", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode node_296 = {"g", "retry_delay_seconds", NULL, 0, 0, NULL, NULL};
-static const struct VgiSchemaNode *const children_297[] = {&node_294, &node_295, &node_296};
-static const struct VgiSchemaNode node_297 = {"+s", "", NULL, 0, 3, children_297, NULL};
-int VgiSchemaSecondaryFailParams(struct ArrowSchema *out, struct ArrowError *error) {
+static const struct VgiSchemaNode node_294 = {"l", "seconds", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_295[] = {&node_294};
+static const struct VgiSchemaNode node_295 = {"+s", "", NULL, 0, 1, children_295, NULL};
+int VgiSchemaConformanceObjectCacheAgeParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_295, out, error);
+}
+int VgiSchemaConformanceObjectCacheAgeEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_162, out, error);
+}
+int VgiSchemaConformanceObjectCacheStatsParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+int VgiSchemaConformanceObjectCacheStatsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_172, out, error);
+}
+int VgiSchemaConformanceObjectCacheStatsResult(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_152, out, error);
+}
+static const struct VgiSchemaNode node_296 = {"l", "initial", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_297[] = {&node_296};
+static const struct VgiSchemaNode node_297 = {"+s", "", NULL, 0, 1, children_297, NULL};
+int VgiSchemaConformanceOpenCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
     return VgiSchemaBuild(&node_297, out, error);
 }
+int VgiSchemaConformanceOpenCounterEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_162, out, error);
+}
+static const struct VgiSchemaNode node_298 = {"l", "target_bytes", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_299[] = {&node_298};
+static const struct VgiSchemaNode node_299 = {"+s", "", NULL, 0, 1, children_299, NULL};
+int VgiSchemaConformanceOversizedUnaryParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_299, out, error);
+}
+int VgiSchemaConformanceOversizedUnaryEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_172, out, error);
+}
+static const struct VgiSchemaNode *const children_300[] = {&node_99, &node_100, &node_103};
+static const struct VgiSchemaNode node_300 = {"+s", "", NULL, 0, 3, children_300, NULL};
+int VgiSchemaConformancePackNestedContainersParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_300, out, error);
+}
+int VgiSchemaConformancePackNestedContainersEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_172, out, error);
+}
+int VgiSchemaConformancePackNestedContainersResult(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_108, out, error);
+}
+static const struct VgiSchemaNode *const children_301[] = {&node_112, &node_119};
+static const struct VgiSchemaNode node_301 = {"+s", "", NULL, 0, 2, children_301, NULL};
+int VgiSchemaConformanceProduceAnnotatedBatchesParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_301, out, error);
+}
+static const struct VgiSchemaNode *const children_302[] = {&node_290, &node_112, &node_138, &node_139};
+static const struct VgiSchemaNode node_302 = {"+s", "", NULL, 0, 4, children_302, NULL};
+int VgiSchemaConformanceProduceDynamicSchemaParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_302, out, error);
+}
+int VgiSchemaConformanceProduceDynamicSchemaHeader(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_137, out, error);
+}
+int VgiSchemaConformanceProduceEmptyParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+static const struct VgiSchemaNode *const children_303[] = {&node_124};
+static const struct VgiSchemaNode node_303 = {"+s", "", NULL, 0, 1, children_303, NULL};
+int VgiSchemaConformanceProduceErrorMidStreamParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_303, out, error);
+}
+int VgiSchemaConformanceProduceErrorOnInitParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+static const struct VgiSchemaNode *const children_304[] = {&node_119, &node_120};
+static const struct VgiSchemaNode node_304 = {"+s", "", NULL, 0, 2, children_304, NULL};
+int VgiSchemaConformanceProduceLargeBatchesParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_304, out, error);
+}
+static const struct VgiSchemaNode *const children_305[] = {&node_112};
+static const struct VgiSchemaNode node_305 = {"+s", "", NULL, 0, 1, children_305, NULL};
+int VgiSchemaConformanceProduceNParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_305, out, error);
+}
+int VgiSchemaConformanceProduceOversizedBatchParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_135, out, error);
+}
+int VgiSchemaConformanceProduceSingleParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+int VgiSchemaConformanceProduceTickMetadataParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_305, out, error);
+}
+int VgiSchemaConformanceProduceWithHeaderParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_305, out, error);
+}
+int VgiSchemaConformanceProduceWithHeaderHeader(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_111, out, error);
+}
+int VgiSchemaConformanceProduceWithHeaderAndLogsParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_305, out, error);
+}
+int VgiSchemaConformanceProduceWithHeaderAndLogsHeader(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_111, out, error);
+}
+int VgiSchemaConformanceProduceWithLogsParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_305, out, error);
+}
+static const struct VgiSchemaNode *const children_306[] = {&node_290, &node_112};
+static const struct VgiSchemaNode node_306 = {"+s", "", NULL, 0, 2, children_306, NULL};
+int VgiSchemaConformanceProduceWithRichHeaderParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_306, out, error);
+}
+int VgiSchemaConformanceProduceWithRichHeaderHeader(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_137, out, error);
+}
+static const struct VgiSchemaNode node_307 = {"b", "include_sha256", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_308[] = {&node_259, &node_307};
+static const struct VgiSchemaNode node_308 = {"+s", "", NULL, 0, 2, children_308, NULL};
+int VgiSchemaConformancePublishedStringParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_308, out, error);
+}
+int VgiSchemaConformancePublishedStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+static const struct VgiSchemaNode node_309 = {"u", "message", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_310[] = {&node_309};
+static const struct VgiSchemaNode node_310 = {"+s", "", NULL, 0, 1, children_310, NULL};
+int VgiSchemaConformanceRaiseRuntimeErrorParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_310, out, error);
+}
+int VgiSchemaConformanceRaiseRuntimeErrorEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+int VgiSchemaConformanceRaiseTypeErrorParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_310, out, error);
+}
+int VgiSchemaConformanceRaiseTypeErrorEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+int VgiSchemaConformanceRaiseValueErrorParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_310, out, error);
+}
+int VgiSchemaConformanceRaiseValueErrorEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+int VgiSchemaConformanceResetCancelProbeParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+static const struct VgiSchemaNode node_311 = {"z", "ref", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_312[] = {&node_311, &node_16, &node_17};
+static const struct VgiSchemaNode node_312 = {"+s", "", NULL, 0, 3, children_312, NULL};
+int VgiSchemaConformanceResolveArgumentRefParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_312, out, error);
+}
+int VgiSchemaConformanceResolveArgumentRefEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+static const struct VgiSchemaNode node_313 = {"b", "compressible", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_314 = {"u", "seed", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_315 = {"l", "cursor_padding", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_316[] = {&node_16, &node_313, &node_314, &node_143, &node_315};
+static const struct VgiSchemaNode node_316 = {"+s", "", NULL, 0, 5, children_316, NULL};
+int VgiSchemaConformanceStateRefExchangeParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_316, out, error);
+}
+int VgiSchemaConformanceStreamSessionCounterParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_305, out, error);
+}
+int VgiSchemaConformanceVoidNoopParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_158, out, error);
+}
+int VgiSchemaConformanceVoidWithParamParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_216, out, error);
+}
+static const struct VgiSchemaNode node_317 = {"l", "required", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_318 = {"u", "optional_str", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_319 = {"l", "optional_int", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_320[] = {&node_317, &node_318, &node_319};
+static const struct VgiSchemaNode node_320 = {"+s", "", NULL, 0, 3, children_320, NULL};
+int VgiSchemaConformanceWithDefaultsParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_320, out, error);
+}
+int VgiSchemaConformanceWithDefaultsEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+int VgiSchemaSecondaryEchoStringParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_260, out, error);
+}
+int VgiSchemaSecondaryEchoStringEnvelope(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_168, out, error);
+}
+static const struct VgiSchemaNode node_321 = {"u", "code", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_322 = {"u", "kind", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode node_323 = {"g", "retry_delay_seconds", NULL, 0, 0, NULL, NULL};
+static const struct VgiSchemaNode *const children_324[] = {&node_321, &node_322, &node_323};
+static const struct VgiSchemaNode node_324 = {"+s", "", NULL, 0, 3, children_324, NULL};
+int VgiSchemaSecondaryFailParams(struct ArrowSchema *out, struct ArrowError *error) {
+    return VgiSchemaBuild(&node_324, out, error);
+}
 int VgiSchemaSecondaryFailOversizedParams(struct ArrowSchema *out, struct ArrowError *error) {
-    return VgiSchemaBuild(&node_139, out, error);
+    return VgiSchemaBuild(&node_158, out, error);
 }
 int ConformanceSchemaInit(const char *name, struct ArrowSchema *out, struct ArrowError *error) {
     if (!name || !out || out->release) return EINVAL;
@@ -1085,6 +1155,8 @@ int ConformanceSchemaInit(const char *name, struct ArrowSchema *out, struct Arro
     if (!strcmp(name, "INPUT_METADATA_OUTPUT_SCHEMA")) return VgiSchemaINPUT_METADATA_OUTPUT_SCHEMA(out, error);
     if (!strcmp(name, "SESSION_COUNTER_OUTPUT_SCHEMA")) return VgiSchemaSESSION_COUNTER_OUTPUT_SCHEMA(out, error);
     if (!strcmp(name, "SESSION_COUNTER_EXCHANGE_INPUT_SCHEMA")) return VgiSchemaSESSION_COUNTER_EXCHANGE_INPUT_SCHEMA(out, error);
+    if (!strcmp(name, "STATE_REF_INPUT_SCHEMA")) return VgiSchemaSTATE_REF_INPUT_SCHEMA(out, error);
+    if (!strcmp(name, "STATE_REF_OUTPUT_SCHEMA")) return VgiSchemaSTATE_REF_OUTPUT_SCHEMA(out, error);
     if (!strcmp(name, "Point")) return VgiSchemaPoint(out, error);
     if (!strcmp(name, "BoundingBox")) return VgiSchemaBoundingBox(out, error);
     if (!strcmp(name, "AllTypes")) return VgiSchemaAllTypes(out, error);
@@ -1117,6 +1189,8 @@ int ConformanceSchemaInit(const char *name, struct ArrowSchema *out, struct Arro
     if (!strcmp(name, "CancellableExchangeState")) return VgiSchemaCancellableExchangeState(out, error);
     if (!strcmp(name, "RichHeader")) return VgiSchemaRichHeader(out, error);
     if (!strcmp(name, "DynamicProducerState")) return VgiSchemaDynamicProducerState(out, error);
+    if (!strcmp(name, "StateRefExchangeState")) return VgiSchemaStateRefExchangeState(out, error);
+    if (!strcmp(name, "ObjectCacheStatsResult")) return VgiSchemaObjectCacheStatsResult(out, error);
     if (!strcmp(name, "ConformanceAddFloatsParams")) return VgiSchemaConformanceAddFloatsParams(out, error);
     if (!strcmp(name, "ConformanceAddFloatsEnvelope")) return VgiSchemaConformanceAddFloatsEnvelope(out, error);
     if (!strcmp(name, "ConformanceCancelProbeCountersParams")) return VgiSchemaConformanceCancelProbeCountersParams(out, error);
@@ -1240,6 +1314,11 @@ int ConformanceSchemaInit(const char *name, struct ArrowSchema *out, struct Arro
     if (!strcmp(name, "ConformanceIncrementCounterEnvelope")) return VgiSchemaConformanceIncrementCounterEnvelope(out, error);
     if (!strcmp(name, "ConformanceInspectPointParams")) return VgiSchemaConformanceInspectPointParams(out, error);
     if (!strcmp(name, "ConformanceInspectPointEnvelope")) return VgiSchemaConformanceInspectPointEnvelope(out, error);
+    if (!strcmp(name, "ConformanceObjectCacheAgeParams")) return VgiSchemaConformanceObjectCacheAgeParams(out, error);
+    if (!strcmp(name, "ConformanceObjectCacheAgeEnvelope")) return VgiSchemaConformanceObjectCacheAgeEnvelope(out, error);
+    if (!strcmp(name, "ConformanceObjectCacheStatsParams")) return VgiSchemaConformanceObjectCacheStatsParams(out, error);
+    if (!strcmp(name, "ConformanceObjectCacheStatsEnvelope")) return VgiSchemaConformanceObjectCacheStatsEnvelope(out, error);
+    if (!strcmp(name, "ConformanceObjectCacheStatsResult")) return VgiSchemaConformanceObjectCacheStatsResult(out, error);
     if (!strcmp(name, "ConformanceOpenCounterParams")) return VgiSchemaConformanceOpenCounterParams(out, error);
     if (!strcmp(name, "ConformanceOpenCounterEnvelope")) return VgiSchemaConformanceOpenCounterEnvelope(out, error);
     if (!strcmp(name, "ConformanceOversizedUnaryParams")) return VgiSchemaConformanceOversizedUnaryParams(out, error);
@@ -1274,6 +1353,9 @@ int ConformanceSchemaInit(const char *name, struct ArrowSchema *out, struct Arro
     if (!strcmp(name, "ConformanceRaiseValueErrorParams")) return VgiSchemaConformanceRaiseValueErrorParams(out, error);
     if (!strcmp(name, "ConformanceRaiseValueErrorEnvelope")) return VgiSchemaConformanceRaiseValueErrorEnvelope(out, error);
     if (!strcmp(name, "ConformanceResetCancelProbeParams")) return VgiSchemaConformanceResetCancelProbeParams(out, error);
+    if (!strcmp(name, "ConformanceResolveArgumentRefParams")) return VgiSchemaConformanceResolveArgumentRefParams(out, error);
+    if (!strcmp(name, "ConformanceResolveArgumentRefEnvelope")) return VgiSchemaConformanceResolveArgumentRefEnvelope(out, error);
+    if (!strcmp(name, "ConformanceStateRefExchangeParams")) return VgiSchemaConformanceStateRefExchangeParams(out, error);
     if (!strcmp(name, "ConformanceStreamSessionCounterParams")) return VgiSchemaConformanceStreamSessionCounterParams(out, error);
     if (!strcmp(name, "ConformanceVoidNoopParams")) return VgiSchemaConformanceVoidNoopParams(out, error);
     if (!strcmp(name, "ConformanceVoidWithParamParams")) return VgiSchemaConformanceVoidWithParamParams(out, error);
@@ -1351,6 +1433,8 @@ const struct VgiMethod VGI_CONFORMANCE_METHODS[] = {
     {"exchange_zero_columns", VGI_METHOD_STREAM, VgiSchemaConformanceExchangeZeroColumnsParams, NULL, NULL, NULL, VGI_STREAM_EXCHANGE},
     {"increment_counter", VGI_METHOD_UNARY, VgiSchemaConformanceIncrementCounterParams, VgiSchemaConformanceIncrementCounterEnvelope, NULL, NULL, VGI_STREAM_UNKNOWN},
     {"inspect_point", VGI_METHOD_UNARY, VgiSchemaConformanceInspectPointParams, VgiSchemaConformanceInspectPointEnvelope, NULL, NULL, VGI_STREAM_UNKNOWN},
+    {"object_cache_age", VGI_METHOD_UNARY, VgiSchemaConformanceObjectCacheAgeParams, VgiSchemaConformanceObjectCacheAgeEnvelope, NULL, NULL, VGI_STREAM_UNKNOWN},
+    {"object_cache_stats", VGI_METHOD_UNARY, VgiSchemaConformanceObjectCacheStatsParams, VgiSchemaConformanceObjectCacheStatsEnvelope, VgiSchemaConformanceObjectCacheStatsResult, NULL, VGI_STREAM_UNKNOWN},
     {"open_counter", VGI_METHOD_UNARY, VgiSchemaConformanceOpenCounterParams, VgiSchemaConformanceOpenCounterEnvelope, NULL, NULL, VGI_STREAM_UNKNOWN},
     {"oversized_unary", VGI_METHOD_UNARY, VgiSchemaConformanceOversizedUnaryParams, VgiSchemaConformanceOversizedUnaryEnvelope, NULL, NULL, VGI_STREAM_UNKNOWN},
     {"pack_nested_containers", VGI_METHOD_UNARY, VgiSchemaConformancePackNestedContainersParams, VgiSchemaConformancePackNestedContainersEnvelope, VgiSchemaConformancePackNestedContainersResult, NULL, VGI_STREAM_UNKNOWN},
@@ -1373,6 +1457,8 @@ const struct VgiMethod VGI_CONFORMANCE_METHODS[] = {
     {"raise_type_error", VGI_METHOD_UNARY, VgiSchemaConformanceRaiseTypeErrorParams, VgiSchemaConformanceRaiseTypeErrorEnvelope, NULL, NULL, VGI_STREAM_UNKNOWN},
     {"raise_value_error", VGI_METHOD_UNARY, VgiSchemaConformanceRaiseValueErrorParams, VgiSchemaConformanceRaiseValueErrorEnvelope, NULL, NULL, VGI_STREAM_UNKNOWN},
     {"reset_cancel_probe", VGI_METHOD_VOID, VgiSchemaConformanceResetCancelProbeParams, NULL, NULL, NULL, VGI_STREAM_UNKNOWN},
+    {"resolve_argument_ref", VGI_METHOD_UNARY, VgiSchemaConformanceResolveArgumentRefParams, VgiSchemaConformanceResolveArgumentRefEnvelope, NULL, NULL, VGI_STREAM_UNKNOWN},
+    {"state_ref_exchange", VGI_METHOD_STREAM, VgiSchemaConformanceStateRefExchangeParams, NULL, NULL, NULL, VGI_STREAM_EXCHANGE},
     {"stream_session_counter", VGI_METHOD_STREAM, VgiSchemaConformanceStreamSessionCounterParams, NULL, NULL, NULL, VGI_STREAM_PRODUCER},
     {"void_noop", VGI_METHOD_VOID, VgiSchemaConformanceVoidNoopParams, NULL, NULL, NULL, VGI_STREAM_UNKNOWN},
     {"void_with_param", VGI_METHOD_VOID, VgiSchemaConformanceVoidWithParamParams, NULL, NULL, NULL, VGI_STREAM_UNKNOWN},

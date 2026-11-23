@@ -21,6 +21,10 @@ int ConformanceRejectAuth(void *, const struct VgiHttpRequest *, struct VgiHttpI
                           struct ArrowError *);
 static _Atomic int64_t probes[3];
 int ConformanceSecondaryRegister(struct VgiRpcServer *, struct ArrowError *);
+int ConformanceStateRefInit(struct VgiRpcCall *, struct VgiRpcReply *);
+int ConformanceObjectCacheStats(struct VgiRpcCall *, struct VgiRpcReply *);
+int ConformanceObjectCacheAge(struct VgiRpcCall *, struct VgiRpcReply *);
+int ConformanceResolveArgumentRef(struct VgiRpcCall *, struct VgiRpcReply *);
 static int named(struct VgiBatch *out, const char *name, struct ArrowError *error) {
     struct ArrowSchema schema = {0};
     int rc = ConformanceSchemaInit(name, &schema, error);
@@ -369,6 +373,10 @@ static int dispatch(void *state, struct VgiRpcCall *c, struct VgiRpcReply *reply
                 VgiBatchSetString(&reply->value, "result", VgiTransportKindName(c->transport_kind));
         return rc ? rc : VgiBatchFinishRow(&reply->value, &c->error);
     }
+    if (!strcmp(name, "state_ref_exchange")) return ConformanceStateRefInit(c, reply);
+    if (!strcmp(name, "object_cache_stats")) return ConformanceObjectCacheStats(c, reply);
+    if (!strcmp(name, "object_cache_age")) return ConformanceObjectCacheAge(c, reply);
+    if (!strcmp(name, "resolve_argument_ref")) return ConformanceResolveArgumentRef(c, reply);
     if (c->method->kind == VGI_METHOD_STREAM) return init_stream(c, reply, 1, NULL);
     if (!strcmp(name, "reset_cancel_probe")) {
         for (int i = 0; i < 3; ++i) atomic_store(&probes[i], 0);
@@ -525,6 +533,21 @@ static int sticky_auth(void *state, const struct VgiHttpRequest *request,
     identity->domain = identity->principal ? "conformance" : "";
     return 0;
 }
+/* --require-principal: X-Conformance-Principal is the principal, and a request
+ * without it is refused like any unauthenticated call. */
+static int require_principal(void *state, const struct VgiHttpRequest *request,
+                             struct VgiHttpIdentity *identity, struct ArrowError *error) {
+    (void)state;
+    (void)error;
+    identity->principal = request->header(request->state, "X-Conformance-Principal");
+    if (!identity->principal || !*identity->principal) {
+        identity->principal = NULL;
+        identity->failure_reason = "missing_credential";
+        return EACCES;
+    }
+    identity->domain = "conformance";
+    return 0;
+}
 int main(int argc, char **argv) {
     signal(SIGPIPE, SIG_IGN);
     struct VgiRpcServer *server = VgiRpcServerNew();
@@ -587,6 +610,12 @@ int main(int argc, char **argv) {
             options.compression = 0;
         else if (!strcmp(argv[i], "--sticky-auth"))
             options.authenticate_request = sticky_auth;
+        else if (!strcmp(argv[i], "--require-principal"))
+            options.authenticate_request = require_principal;
+        else if (i + 1 < argc && !strcmp(argv[i], "--object-cache-bytes"))
+            VgiObjectCacheSetMaxBytes(strtoll(argv[++i], NULL, 10));
+        else if (i + 1 < argc && !strcmp(argv[i], "--token-ttl"))
+            options.stream_ttl_seconds = (unsigned)strtoul(argv[++i], NULL, 10);
         else if (i + 1 < argc && !strcmp(argv[i], "--sticky-ttl"))
             options.sticky_ttl_seconds = (unsigned)strtoul(argv[++i], NULL, 10);
         else if (i + 1 < argc && !strcmp(argv[i], "--token-key"))

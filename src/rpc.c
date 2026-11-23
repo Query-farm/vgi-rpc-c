@@ -627,8 +627,10 @@ struct VgiTelemetry *VgiRpcServerTelemetry(struct VgiRpcServer *server) {
 }
 int VgiRpcServerSetExternal(struct VgiRpcServer *server, const struct VgiExternalOptions *options) {
     if (!server || server->serving) return EINVAL;
-    if (options && (options->max_fetch_bytes < 1 || options->max_decompressed_bytes < 1 ||
-                    !options->timeout_seconds || options->threshold_bytes < 0))
+    if (options &&
+        (options->max_fetch_bytes < 1 || options->max_decompressed_bytes < 1 ||
+         !options->timeout_seconds || options->threshold_bytes < 0 ||
+         options->max_upload_bytes < 0 || options->max_upload_bytes > options->max_fetch_bytes))
         return EINVAL;
     server->external_enabled = options != NULL;
     if (options) server->external = *options;

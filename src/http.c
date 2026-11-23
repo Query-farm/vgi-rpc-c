@@ -1145,6 +1145,12 @@ static int lower_hex64(struct ArrowStringView text) {
     return 1;
 }
 #define UPLOAD_URL_MAX_ENTRIES 100
+/* VGI-Max-Upload-Bytes: max_upload_bytes when set, never above the fetch cap. */
+static int64_t upload_cap(const struct VgiExternalOptions *external) {
+    return external->max_upload_bytes > 0 && external->max_upload_bytes < external->max_fetch_bytes
+               ? external->max_upload_bytes
+               : external->max_fetch_bytes;
+}
 /* Upload URL protocol v2: one (size, sha256) entry per upload; each URL is
  * minted for exactly those bytes. The retired `count` shape is refused. */
 static int upload_urls(struct HttpTask *task, struct HttpStream *stream) {
@@ -1219,10 +1225,10 @@ static int upload_urls(struct HttpTask *task, struct HttpStream *stream) {
                      (long long)i);
             return upload_refuse(task, call, message);
         }
-        if (external->max_fetch_bytes > 0 && size > external->max_fetch_bytes) {
+        if (size > upload_cap(external)) {
             snprintf(message, sizeof(message),
                      "__upload_url__ uploads[%lld].size %lld exceeds VGI-Max-Upload-Bytes (%lld)",
-                     (long long)i, (long long)size, (long long)external->max_fetch_bytes);
+                     (long long)i, (long long)size, (long long)upload_cap(external));
             return upload_refuse(task, call, message);
         }
     }
@@ -1255,9 +1261,10 @@ static int upload_urls(struct HttpTask *task, struct HttpStream *stream) {
         char sha256[65];
         memcpy(sha256, hash.data, 64);
         sha256[64] = 0;
-        rc = external->allocate(external->storage_state,
-                                ArrowArrayViewGetIntUnsafe(sizes, first + i), sha256, &url,
-                                &call->error);
+        rc = (external->allocate_client_upload ? external->allocate_client_upload
+                                               : external->allocate)(
+            external->storage_state, ArrowArrayViewGetIntUnsafe(sizes, first + i), sha256, &url,
+            &call->error);
         if (!rc && (!url.upload_url || !url.download_url)) rc = EINVAL;
         struct ArrowBuffer ref;
         ArrowBufferInit(&ref);
@@ -1713,7 +1720,7 @@ static void capabilities(struct HttpServer *server, struct evhttp_request *reque
                       external && external->allocate ? "true" : "false");
     if (external && external->allocate) {
         evhttp_add_header(h, "VGI-Upload-URL-Support", "2");
-        snprintf(number, sizeof(number), "%lld", (long long)external->max_fetch_bytes);
+        snprintf(number, sizeof(number), "%lld", (long long)upload_cap(external));
         evhttp_add_header(h, "VGI-Max-Upload-Bytes", number);
     }
     snprintf(number, sizeof(number), "%lld",
@@ -1726,6 +1733,9 @@ static void capabilities(struct HttpServer *server, struct evhttp_request *reque
     evhttp_add_header(h, "VGI-Max-Request-Bytes", number);
     snprintf(number, sizeof(number), "%lld", (long long)server->options.max_response_bytes);
     evhttp_add_header(h, "VGI-Max-Response-Bytes", number);
+    for (size_t i = 0; i < server->options.capability_header_count; ++i)
+        evhttp_add_header(h, server->options.capability_header_names[i],
+                          server->options.capability_header_values[i]);
     evhttp_add_header(h, "Cache-Control", "no-store");
     if (server->options.cors_origin && *server->options.cors_origin) {
         const char *origin =
@@ -1750,6 +1760,9 @@ static void capabilities(struct HttpServer *server, struct evhttp_request *reque
                 "VGI-Sticky-Default-TTL, VGI-Sticky-Echo-Headers, VGI-Session, VGI-Session-Close, "
                 "VGI-Upload-URL-Support, VGI-Max-Upload-Bytes, "
                 "VGI-Max-Externalized-Response-Bytes");
+            for (size_t i = 0; i < server->options.capability_header_count; ++i)
+                evhttp_add_header(h, "Access-Control-Expose-Headers",
+                                  server->options.capability_header_names[i]);
             evhttp_add_header(h, "Access-Control-Max-Age", "600");
             evhttp_add_header(h, "Cross-Origin-Resource-Policy", "cross-origin");
         }
@@ -2101,6 +2114,22 @@ int VgiRpcServerServeHttp(struct VgiRpcServer *rpc, const struct VgiHttpOptions 
         !options->max_concurrent_requests ||
         (options->sticky_enabled && (!options->sticky_ttl_seconds || !options->max_sessions)))
         return EINVAL;
+    if (options->capability_header_count &&
+        (!options->capability_header_names || !options->capability_header_values))
+        return EINVAL;
+    for (size_t i = 0; i < options->capability_header_count; ++i) {
+        const char *name = options->capability_header_names[i],
+                   *value = options->capability_header_values[i];
+        int valid = name && *name && value;
+        for (const char *p = name; valid && *p; ++p)
+            valid = isalnum((unsigned char)*p) || strchr("!#$%&'*+-.^_`|~", *p) != NULL;
+        for (const char *p = value; valid && *p; ++p)
+            valid = (unsigned char)*p >= 0x20 && *p != 0x7f;
+        if (!valid) {
+            ArrowErrorSet(error, "Invalid capability header %zu", i);
+            return EINVAL;
+        }
+    }
     const struct VgiGrantKeys *keys =
         options->grant_keys ? options->grant_keys
                             : (options->identity ? options->identity->grant_keys : NULL);

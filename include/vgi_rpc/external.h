@@ -65,6 +65,17 @@ struct VgiExternalOptions {
     int (*get_object)(void *, const char *object_id, int64_t max_bytes, struct ArrowBuffer *out,
                       struct ArrowError *);
     void *storage_state;
+    /* Optional: mint the URL pair of an `__upload_url__` grant (a client
+     * uploading a request or an argument), with the same contract as
+     * allocate. Unset, grants use allocate. Backends that tell client uploads
+     * from the server's own writes (the blob vendor's advisory origin
+     * "client_upload") set it. */
+    int (*allocate_client_upload)(void *, int64_t size, const char *sha256_hex,
+                                  struct VgiExternalUploadUrl *, struct ArrowError *);
+    /* The largest client upload granted and advertised as VGI-Max-Upload-Bytes;
+     * zero (the default) means max_fetch_bytes. Never above max_fetch_bytes, so
+     * a client is never granted an upload this server could not fetch back. */
+    int64_t max_upload_bytes;
 };
 struct VgiExternalRef {
     char *location;

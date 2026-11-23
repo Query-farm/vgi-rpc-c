@@ -85,6 +85,15 @@ struct VgiHttpOptions {
     int require_authentication;
     /* WWW-Authenticate on 401 responses; NULL means Bearer realm="vgi". */
     const char *auth_challenge;
+    /* Application capability headers, sent on every response next to the
+     * runtime's own (VGI-Max-Request-Bytes, VGI-Upload-URL-Support, ...) and
+     * exposed to CORS clients: for example vgi's VGI-Arguments-Ref-Bytes
+     * (protocol 3.4). Names must be HTTP tokens and values must not contain
+     * control characters; the server refuses to start otherwise. Both arrays
+     * are borrowed and must outlive the server. */
+    const char *const *capability_header_names;
+    const char *const *capability_header_values;
+    size_t capability_header_count;
 };
 void VgiHttpOptionsInit(struct VgiHttpOptions *);
 /* Serves until SIGINT/SIGTERM. Prints PORT:<port> after binding (port 0 selects

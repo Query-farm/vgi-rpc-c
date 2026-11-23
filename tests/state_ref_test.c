@@ -380,6 +380,22 @@ static void defaults_tests(void) {
     VgiHttpOptionsInit(&options);
     CHECK(options.stream_ttl_seconds == 21600); /* 6 h maximum stream duration */
     CHECK(options.stream_idle_seconds == 600);
+    /* Application capability headers are validated before the server binds. */
+    struct VgiRpcServer *server = VgiRpcServerNew();
+    CHECK(server);
+    const char *names[] = {"VGI-Arguments-Ref-Bytes"}, *bad_names[] = {"Bad Name"};
+    const char *values[] = {"4194304"}, *bad_values[] = {"1\r\nX-Injected: 1"};
+    struct ArrowError error = {{0}};
+    options.capability_header_count = 1;
+    options.capability_header_names = bad_names;
+    options.capability_header_values = values;
+    CHECK(VgiRpcServerServeHttp(server, &options, &error) == EINVAL);
+    options.capability_header_names = names;
+    options.capability_header_values = bad_values;
+    CHECK(VgiRpcServerServeHttp(server, &options, &error) == EINVAL);
+    options.capability_header_values = NULL;
+    CHECK(VgiRpcServerServeHttp(server, &options, &error) == EINVAL);
+    VgiRpcServerFree(server);
 }
 
 int main(void) {

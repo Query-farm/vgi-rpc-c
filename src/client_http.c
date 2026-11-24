@@ -199,6 +199,8 @@ static int exchange_http(struct VgiClient *c, const char *verb, const char *path
     if (!rc) rc = append_header(&headers, "Accept-Encoding", "identity");
     if (!rc) rc = append_header(&headers, "X-VGI-Accept-Encoding", "zstd,gzip,identity");
     if (!rc) rc = append_header(&headers, "Expect", "");
+    if (!rc && c->client_versions && !strcmp(verb, "POST"))
+        rc = append_header(&headers, VGI_RPC_CLIENT_PROTOCOL_VERSIONS_HEADER, c->client_versions);
     json_object_object_foreach(h->defaults, key, header_value) {
         if (c->trace && (!strcasecmp(key, "traceparent") || !strcasecmp(key, "tracestate")))
             continue;
@@ -292,6 +294,13 @@ static int exchange_http(struct VgiClient *c, const char *verb, const char *path
         if (!*encoding) encoding = header(h, "content-encoding");
         rc = VgiHttpDecode(encoding, bytes(&wire), h->response_limit, out);
         session_headers(h);
+        /* §6: every RPC response's advertisement replaces what was learned. The
+         * connect-time OPTIONS probe is not an RPC exchange and teaches nothing:
+         * before the first call's response the client speaks its own newest. */
+        struct json_object *advertised =
+            json_object_object_get(h->headers, "vgi-protocol-versions");
+        if (advertised && strcmp(verb, "OPTIONS"))
+            VgiClientObserveVersions(c, json_object_get_string(advertised));
     }
     curl_slist_free_all(headers);
     free(url);

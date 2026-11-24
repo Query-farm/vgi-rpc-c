@@ -6,10 +6,11 @@
 #include "vgi_rpc/external.h"
 #include "vgi_rpc/generated/protocol.h"
 #include "vgi_rpc/method.h"
+#include "vgi_rpc/protocol_versions.h"
 #include "vgi_rpc/state_ref.h"
 #include "vgi_rpc/stream.h"
-#include "vgi_rpc/vendor.h"
 #include "vgi_rpc/telemetry.h"
+#include "vgi_rpc/vendor.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -117,6 +118,18 @@ void VgiRpcServerSetTracebacks(struct VgiRpcServer *server, int enabled);
 /* Registrations are copied except methods/state, which must outlive server. */
 int VgiRpcServerAddProtocol(struct VgiRpcServer *server, const struct VgiRpcProtocol *protocol,
                             struct ArrowError *error);
+/* PROTOCOL_VERSIONS_V1: override the MAJOR.MINOR window a protocol with a
+ * declared version is gated against ("3.3-3.4", or "3.4" for 3.4-3.4); NULL or
+ * "" restores the default, exactly the declared version's major.minor. Order
+ * relative to adding the protocol does not matter. Before serving. This is how
+ * a fixture worker impersonates an older server (VGI_TEST_PROTOCOL_RANGE). */
+int VgiRpcServerSetProtocolVersionRange(struct VgiRpcServer *, const char *protocol,
+                                        const char *range);
+/* The advertisement ("vgi.v3=3.4-3.4, ..."), every gated protocol in hosting
+ * order; "" when nothing is gated. Sent as VGI-Protocol-Versions on every HTTP
+ * response and as vgi_rpc.protocol_versions on reflection results,
+ * __transport_options__ replies and protocol_version_unsupported refusals. */
+const char *VgiRpcServerProtocolVersions(struct VgiRpcServer *);
 int VgiRpcServerServe(struct VgiRpcServer *server, FILE *input, FILE *output,
                       struct ArrowError *error);
 int VgiRpcServerServeSocket(struct VgiRpcServer *, const char *unix_path, const char *tcp_address,

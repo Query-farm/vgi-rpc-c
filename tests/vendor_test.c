@@ -36,7 +36,10 @@ static void clear_env(void) {
                            VGI_RPC_EXTERNAL_COMPRESSION_ENV,
                            VGI_RPC_MAX_UPLOAD_BYTES_ENV,
                            VGI_RPC_MAX_FETCH_BYTES_ENV,
-                           VGI_RPC_MAX_REQUEST_BYTES_ENV};
+                           VGI_RPC_MAX_REQUEST_BYTES_ENV,
+                           VGI_STORAGE_BACKEND_ENV,
+                           VGI_STORAGE_S3_BUCKET_ENV,
+                           VGI_STORAGE_GCS_BUCKET_ENV};
     for (size_t i = 0; i < sizeof(names) / sizeof(*names); ++i) unsetenv(names[i]);
 }
 
@@ -84,6 +87,33 @@ static void offline_tests(void) {
     unsetenv(VGI_RPC_EXTERNAL_COMPRESSION_ENV);
     setenv(VGI_RPC_EXTERNALIZE_THRESHOLD_ENV, "-1", 1);
     CHECK(VgiExternalOptionsFromEnv(&external, &v, &error) == EINVAL);
+    clear_env();
+
+    /* Direct object storage contract §1: the C SDK is vendor-only. */
+    enum VgiStorageBackend backend;
+    CHECK(VgiStorageBackendFromEnv(&backend, &error) == 0 && backend == VGI_STORAGE_BACKEND_NONE);
+    setenv(VGI_STORAGE_BACKEND_ENV, "s3", 1);
+    CHECK(VgiStorageBackendFromEnv(&backend, &error) == ENOTSUP);
+    CHECK(strstr(error.message, "not supported by the C SDK") && strstr(error.message, "'s3'"));
+    CHECK(VgiExternalOptionsFromEnv(&external, &v, &error) == ENOTSUP && !v);
+    setenv(VGI_STORAGE_BACKEND_ENV, "GCS", 1);
+    CHECK(VgiStorageBackendFromEnv(&backend, &error) == ENOTSUP && strstr(error.message, "'gcs'"));
+    setenv(VGI_STORAGE_BACKEND_ENV, "azure", 1);
+    CHECK(VgiStorageBackendFromEnv(&backend, &error) == EINVAL);
+    setenv(VGI_STORAGE_BACKEND_ENV, "vendor", 1); /* without a URL */
+    CHECK(VgiStorageBackendFromEnv(&backend, &error) == EINVAL);
+    unsetenv(VGI_STORAGE_BACKEND_ENV);
+    setenv(VGI_STORAGE_S3_BUCKET_ENV, "bucket", 1); /* implies s3 */
+    CHECK(VgiStorageBackendFromEnv(&backend, &error) == ENOTSUP &&
+          strstr(error.message, VGI_STORAGE_S3_BUCKET_ENV));
+    setenv(VGI_BLOB_VENDOR_URL_ENV, "http://127.0.0.1:9", 1); /* two backends, none chosen */
+    setenv(VGI_BLOB_VENDOR_TOKEN_ENV, "t", 1);
+    CHECK(VgiStorageBackendFromEnv(&backend, &error) == EINVAL &&
+          strstr(error.message, "more than one"));
+    setenv(VGI_STORAGE_BACKEND_ENV, "vendor", 1); /* an explicit choice settles it */
+    CHECK(VgiStorageBackendFromEnv(&backend, &error) == 0 && backend == VGI_STORAGE_BACKEND_VENDOR);
+    setenv(VGI_STORAGE_BACKEND_ENV, "none", 1); /* none turns the vendor off */
+    CHECK(VgiExternalOptionsFromEnv(&external, &v, &error) == 0 && !v);
     clear_env();
 
     /* The server configuration hook: request cap only, without a vendor. */

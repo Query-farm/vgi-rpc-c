@@ -832,10 +832,79 @@ static int positive_env(const char *name, int64_t *out, struct ArrowError *error
     *out = value;
     return 0;
 }
+static int env_set(const char *name) {
+    const char *value = getenv(name);
+    if (!value) return 0;
+    while (*value == ' ' || *value == '\t') ++value;
+    return *value != 0;
+}
+int VgiStorageBackendFromEnv(enum VgiStorageBackend *out, struct ArrowError *error) {
+    if (!out) return EINVAL;
+    *out = VGI_STORAGE_BACKEND_NONE;
+    const char *raw = getenv(VGI_STORAGE_BACKEND_ENV);
+    char backend[16] = {0};
+    if (raw) {
+        while (*raw == ' ' || *raw == '\t') ++raw;
+        size_t n = strlen(raw);
+        while (n && (raw[n - 1] == ' ' || raw[n - 1] == '\t')) --n;
+        if (n >= sizeof(backend)) n = sizeof(backend) - 1;
+        for (size_t i = 0; i < n; ++i) backend[i] = (char)tolower((unsigned char)raw[i]);
+    }
+    int vendor = env_set(VGI_BLOB_VENDOR_URL_ENV), s3 = env_set(VGI_STORAGE_S3_BUCKET_ENV),
+        gcs = env_set(VGI_STORAGE_GCS_BUCKET_ENV);
+    const char *direct = NULL, *why = "";
+    if (*backend) {
+        if (!strcmp(backend, "none")) return 0;
+        if (!strcmp(backend, "vendor")) {
+            if (!vendor) {
+                ArrowErrorSet(error, "%s=vendor needs %s (the blob vendor's URL)",
+                              VGI_STORAGE_BACKEND_ENV, VGI_BLOB_VENDOR_URL_ENV);
+                return EINVAL;
+            }
+            *out = VGI_STORAGE_BACKEND_VENDOR;
+            return 0;
+        }
+        if (strcmp(backend, "s3") && strcmp(backend, "gcs")) {
+            ArrowErrorSet(error, "%s must be vendor, s3, gcs or none, got '%s'",
+                          VGI_STORAGE_BACKEND_ENV, backend);
+            return EINVAL;
+        }
+        direct = !strcmp(backend, "s3") ? "s3" : "gcs";
+        why = VGI_STORAGE_BACKEND_ENV;
+    } else {
+        if (vendor + s3 + gcs > 1) {
+            ArrowErrorSet(error,
+                          "more than one storage backend is configured (%s%s%s%s%s); set %s to "
+                          "vendor, s3, gcs or none to choose",
+                          vendor ? VGI_BLOB_VENDOR_URL_ENV : "", vendor && (s3 || gcs) ? ", " : "",
+                          s3 ? VGI_STORAGE_S3_BUCKET_ENV : "", s3 && gcs ? ", " : "",
+                          gcs ? VGI_STORAGE_GCS_BUCKET_ENV : "", VGI_STORAGE_BACKEND_ENV);
+            return EINVAL;
+        }
+        if (vendor) {
+            *out = VGI_STORAGE_BACKEND_VENDOR;
+            return 0;
+        }
+        if (!s3 && !gcs) return 0;
+        direct = s3 ? "s3" : "gcs";
+        why = s3 ? VGI_STORAGE_S3_BUCKET_ENV : VGI_STORAGE_GCS_BUCKET_ENV;
+    }
+    ArrowErrorSet(error,
+                  "storage backend '%s' (selected by %s) is not supported by the C SDK "
+                  "(vgi-rpc-c / vgi-c): in protocol 3.4 it stores large values only through the "
+                  "blob vendor. Set %s with %s=vendor, or %s=none to keep everything inline; "
+                  "direct S3/GCS storage needs another VGI SDK.",
+                  direct, why, VGI_BLOB_VENDOR_URL_ENV, VGI_STORAGE_BACKEND_ENV,
+                  VGI_STORAGE_BACKEND_ENV);
+    return ENOTSUP;
+}
 static int env_url_token(const char **url, const char **token, struct ArrowError *error) {
+    enum VgiStorageBackend backend;
+    int selected = VgiStorageBackendFromEnv(&backend, error);
+    if (selected) return selected;
     *url = getenv(VGI_BLOB_VENDOR_URL_ENV);
     *token = NULL;
-    if (!*url || !**url) return ENOENT;
+    if (backend != VGI_STORAGE_BACKEND_VENDOR || !*url || !**url) return ENOENT;
     *token = getenv(VGI_BLOB_VENDOR_TOKEN_ENV);
     if (!*token || !**token) *token = getenv(VGI_BLOB_VENDOR_TOKEN_FALLBACK_ENV);
     if (!*token || !**token) {

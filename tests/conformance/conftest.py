@@ -643,6 +643,9 @@ _CLIENT_ROLE_BODY_CLASSES = frozenset(
         "TestCallTokenSplit",
         "TestColdCallStateCache",
         "TestSticky",
+        # PROTOCOL_VERSIONS_V1 §9: the C client against a scripted reference
+        # server, through `conformance_negotiating_client`.
+        "TestClientNegotiation",
     }
 )
 
@@ -655,7 +658,17 @@ _CLIENT_ROLE_FIXTURES = frozenset({"conformance_conn", "conformance_raw_conn", "
 #: fixture built — they test a server's handling of a hostile wire.  A
 #: driver-backed proxy has no such attribute by construction: the socket lives
 #: in the client process, which is the point.
-_CLIENT_ROLE_EXCLUDED_CLASSES = frozenset({"TestAdversarialRawRequestContract", "TestAdversarialHttpRequestContract"})
+#: The PROTOCOL_VERSIONS_V1 server groups likewise write hand-built requests
+#: (out-of-range versions, a missing version) on the raw transport and assert
+#: the server's reply bytes; the client side is `TestClientNegotiation`.
+_CLIENT_ROLE_EXCLUDED_CLASSES = frozenset(
+    {
+        "TestAdversarialRawRequestContract",
+        "TestAdversarialHttpRequestContract",
+        "TestDescribeAdvertisesVersions",
+        "TestOutOfRangeRefusal",
+    }
+)
 
 
 def _exercises_the_client(item: pytest.Item) -> bool:
@@ -1407,3 +1420,74 @@ def conformance_http_grant_port() -> Iterator[int]:
     """
     with spawn_http("--identity", "grants") as port:
         yield port
+
+
+# ---------------------------------------------------------------------------
+# Protocol version negotiation (PROTOCOL_VERSIONS_V1 §9)
+# ---------------------------------------------------------------------------
+
+_DEFAULT_NEGOTIATING_CLIENT = _REPO_ROOT / "build" / "conformance" / "conformance_negotiating_client"
+
+
+class NegotiatingCallError(Exception):
+    """A failed ``ping`` of the C negotiating client, with the error's kind and code."""
+
+    def __init__(self, error_kind: str, error_code: str, message: str) -> None:
+        super().__init__(message)
+        self.error_kind = error_kind
+        self.error_code = error_code
+        self.error_message = message
+
+
+class _NegotiatingClient:
+    """One ``conformance_negotiating_client`` process: one vgi-rpc-c client, one endpoint."""
+
+    def __init__(self, proc: subprocess.Popen[str]) -> None:
+        self._proc = proc
+
+    def ping(self) -> str:
+        import json
+
+        assert self._proc.stdin is not None and self._proc.stdout is not None
+        self._proc.stdin.write("ping\n")
+        self._proc.stdin.flush()
+        line = self._proc.stdout.readline()
+        if not line:
+            raise RuntimeError(f"negotiating client exited ({self._proc.poll()})")
+        reply = json.loads(line)
+        if "result" in reply:
+            return str(reply["result"])
+        raise NegotiatingCallError(reply.get("error_kind", ""), reply.get("error_code", ""), reply.get("message", ""))
+
+
+@pytest.fixture
+def conformance_negotiating_client() -> Callable[..., Any]:
+    """``factory(base_url, protocol, version, version_range)``: the C client negotiating per §6."""
+    binary = Path(os.environ.get("VGI_NEGOTIATING_CLIENT") or _DEFAULT_NEGOTIATING_CLIENT)
+    if not binary.is_file():
+        driver = os.environ.get("VGI_CLIENT_DRIVER")
+        if driver:
+            binary = Path(driver).with_name("conformance_negotiating_client")
+    if not binary.is_file():
+        pytest.skip(f"conformance_negotiating_client not built: {binary}")
+
+    @contextlib.contextmanager
+    def factory(base_url: str, protocol: str, version: str, version_range: str) -> Iterator[_NegotiatingClient]:
+        proc = subprocess.Popen(
+            [str(binary), base_url, protocol, version, version_range],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            yield _NegotiatingClient(proc)
+        finally:
+            if proc.stdin is not None:
+                proc.stdin.close()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=10)
+
+    return factory

@@ -23,8 +23,20 @@ struct VgiClient {
     struct VgiHttpClient *http;
     struct VgiShm *shm;
     struct VgiTraceSpan *trace;
+    /* PROTOCOL_VERSIONS_V1 §6, per endpoint (this connection). declared is the
+     * options' protocol_version; window the client's own range; advertised the
+     * last VGI-Protocol-Versions seen (seen != 0), legacy a version a pre-spec
+     * refusal named. version (above) is what the next call sends. */
+    char *declared, *client_versions, *advertised;
+    struct VgiVersionWindow window;
+    uint64_t patch;
+    int versioned, seen, legacy_set, probed;
+    uint64_t legacy[2];
 };
 int VgiClientSetError(struct VgiClient *, const char *, const char *, const char *);
+/* Negotiation: learn from an advertisement (NULL is ignored), and from a
+ * refusal in c->error. */
+void VgiClientObserveVersions(struct VgiClient *, const char *advertisement);
 int VgiClientReusable(struct VgiClient *);
 void VgiClientClearError(struct VgiClient *);
 int VgiClientReadMetadata(struct VgiClient *, const char *);

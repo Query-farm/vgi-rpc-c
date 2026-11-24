@@ -51,6 +51,19 @@ The library bounds subprocess/socket I/O and HTTP requests using
 `timeout_seconds`. Raw writes suppress only their own SIGPIPE, preserving the
 application's signal handler and mask.
 
+## Protocol versions
+
+A client negotiates per connection (vgi-rpc `PROTOCOL_VERSIONS_V1.md` §6). It
+sends its own window (`protocol_version`, widened downward by
+`protocol_version_range`) as `vgi_rpc.protocol_versions_client`, learns the
+server's windows from `VGI-Protocol-Versions` and `vgi_rpc.protocol_versions`
+on responses and refusals, and speaks the highest common MAJOR.MINOR with its
+own patch. Before any response it speaks its newest version; a refused call is
+surfaced (only reflection is retried) and the next call uses what was learned;
+once the windows are known to be disjoint, calls fail with
+`protocol_version_unsupported` without sending. A byte-stream client whose
+window is wider than one version reads the windows through reflection first.
+
 ## HTTP
 
 `headers` supplies default authentication or application headers. The client

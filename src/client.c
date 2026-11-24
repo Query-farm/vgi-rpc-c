@@ -92,8 +92,214 @@ static void trace_end(struct VgiClient *c, int rc) {
     c->trace = NULL;
 }
 int VgiClientReusable(struct VgiClient *c) { return VgiClientTransportReusable(c); }
+
+/* ------------------------------------------------------------------------- */
+/* Protocol version negotiation (PROTOCOL_VERSIONS_V1 §6)                    */
+/* ------------------------------------------------------------------------- */
+
+void VgiClientObserveVersions(struct VgiClient *c, const char *advertisement) {
+    if (!advertisement || !c->versioned) return;
+    char *copy = strdup(advertisement);
+    if (!copy) return;
+    free(c->advertised);
+    c->advertised = copy; /* the newest statement replaces the old (a redeploy) */
+    c->seen = 1;
+    c->legacy_set = 0;
+}
+/* A pre-spec refusal names the server version as "Server: X.Y[.Z]" or
+ * "server requires X.Y[.Z]", in the message or a precondition description. */
+static int legacy_version(const char *text, uint64_t out[2]) {
+    const char *labels[] = {"Server:", "server requires"};
+    for (int k = 0; k < 2; ++k)
+        for (const char *at = text ? strstr(text, labels[k]) : NULL; at;
+             at = strstr(at + 1, labels[k])) {
+            const char *v = at + strlen(labels[k]);
+            while (*v == ' ' || *v == '\t' || *v == '\n') ++v;
+            size_t n = 0;
+            while ((v[n] >= '0' && v[n] <= '9') || v[n] == '.') ++n;
+            /* X.Y, then an optional .Z */
+            const char *dot = memchr(v, '.', n);
+            const char *second = dot ? memchr(dot + 1, '.', n - (size_t)(dot + 1 - v)) : NULL;
+            if (dot && !VgiVersionMajorMinor(v, second ? (size_t)(second - v) : n, out)) return 1;
+        }
+    return 0;
+}
+static void observe_refusal(struct VgiClient *c) {
+    if (!c->versioned) return;
+    struct json_object *details =
+        json_tokener_parse(c->error.details_json ? c->error.details_json : "");
+    const char *advertised = NULL;
+    char *descriptions = NULL;
+    size_t length = 0;
+    for (size_t i = 0; details && json_object_is_type(details, json_type_array) &&
+                       i < json_object_array_length(details);
+         ++i) {
+        struct json_object *item = json_object_array_get_idx(details, i), *metadata = NULL,
+                           *violations = NULL;
+        const char *type = json_text(item, "@type");
+        if (!strcmp(type, "vgi_rpc.ErrorInfo") &&
+            json_object_object_get_ex(item, "metadata", &metadata) &&
+            *json_text(metadata, VGI_RPC_PROTOCOL_VERSIONS_KEY))
+            advertised = json_text(metadata, VGI_RPC_PROTOCOL_VERSIONS_KEY);
+        if (!strcmp(type, "vgi_rpc.PreconditionFailure") &&
+            json_object_object_get_ex(item, "violations", &violations) &&
+            json_object_is_type(violations, json_type_array))
+            for (size_t j = 0; j < json_object_array_length(violations); ++j) {
+                const char *d = json_text(json_object_array_get_idx(violations, j), "description");
+                size_t n = strlen(d);
+                char *grown = realloc(descriptions, length + n + 2);
+                if (!grown) break;
+                descriptions = grown;
+                memcpy(descriptions + length, d, n);
+                length += n;
+                descriptions[length++] = '\n';
+                descriptions[length] = 0;
+            }
+    }
+    if (advertised)
+        VgiClientObserveVersions(c, advertised);
+    else if (!c->seen) {
+        uint64_t version[2];
+        if (legacy_version(c->error.message, version) || legacy_version(descriptions, version)) {
+            c->legacy[0] = version[0];
+            c->legacy[1] = version[1];
+            c->legacy_set = 1;
+        }
+    }
+    free(descriptions);
+    json_object_put(details);
+}
+/* Choose what the next call speaks (c->version), or fail without sending when
+ * the server's window and the client's do not overlap. */
+static int choose_version(struct VgiClient *c) {
+    if (!c->versioned) return 0;
+    struct VgiVersionWindow server;
+    int known = 0;
+    if (c->seen && VgiVersionsFind(c->advertised, c->protocol, &server))
+        known = 1;
+    else if (c->legacy_set) {
+        server.min[0] = server.max[0] = c->legacy[0];
+        server.min[1] = server.max[1] = c->legacy[1];
+        known = 1;
+    }
+    uint64_t chosen[2] = {c->window.max[0], c->window.max[1]};
+    if (known) {
+        const uint64_t *top = server.max;
+        if (c->window.max[0] < top[0] || (c->window.max[0] == top[0] && c->window.max[1] < top[1]))
+            top = c->window.max;
+        chosen[0] = top[0];
+        chosen[1] = top[1];
+        if (!VgiVersionWindowContains(&server, chosen) ||
+            !VgiVersionWindowContains(&c->window, chosen)) {
+            char theirs[96], ours[96], advice[512], message[1024];
+            VgiVersionWindowFormat(&server, theirs, sizeof(theirs));
+            VgiVersionWindowFormat(&c->window, ours, sizeof(ours));
+            const char *p = c->protocol;
+            if (server.max[0] < c->window.min[0] ||
+                (server.max[0] == c->window.min[0] && server.max[1] < c->window.min[1]))
+                snprintf(advice, sizeof(advice),
+                         "The server is too old (this client is too new for it): upgrade the "
+                         "worker to one supporting %s %llu.%llu or newer, or use a client that "
+                         "supports %s %llu.%llu.",
+                         p, (unsigned long long)c->window.min[0],
+                         (unsigned long long)c->window.min[1], p, (unsigned long long)server.max[0],
+                         (unsigned long long)server.max[1]);
+            else
+                snprintf(advice, sizeof(advice),
+                         "The client is too old (the server is too new for it): upgrade the "
+                         "client to one supporting %s %llu.%llu or newer, or use a worker that "
+                         "supports %s %llu.%llu.",
+                         p, (unsigned long long)server.min[0], (unsigned long long)server.min[1], p,
+                         (unsigned long long)c->window.max[0],
+                         (unsigned long long)c->window.max[1]);
+            snprintf(message, sizeof(message),
+                     VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED
+                     ": no common %s version. This client supports %s %s; the server%s%s "
+                     "supports %s %s. %s",
+                     p, p, ours, c->options.target ? " at " : "",
+                     c->options.target ? c->options.target : "", p, theirs, advice);
+            VgiClientSetError(c, "NoCommonVersionError", "FAILED_PRECONDITION", message);
+            free((void *)c->error.kind);
+            c->error.kind = strdup(VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED);
+            return EIO;
+        }
+    }
+    char wire[96];
+    snprintf(wire, sizeof(wire), "%llu.%llu.%llu", (unsigned long long)chosen[0],
+             (unsigned long long)chosen[1], (unsigned long long)c->patch);
+    char *next = strdup(wire);
+    if (!next) return ENOMEM;
+    free(c->version);
+    c->version = next;
+    return 0;
+}
+/* Whether a call addresses this client's own (negotiated) protocol. */
+static int negotiated_call(struct VgiClient *c, const char *method,
+                           const struct VgiAnnotatedBatch *input) {
+    if (!c->versioned || !strcmp(method, "__transport_options__")) return 0;
+    struct ArrowStringView protocol =
+        VgiMetadataGet((const char *)input->metadata.data, VGI_RPC_PROTOCOL_KEY);
+    return !protocol.data || (protocol.size_bytes == (int64_t)strlen(c->protocol) &&
+                              !memcmp(protocol.data, c->protocol, strlen(c->protocol)));
+}
+static int list_protocols_probe(struct VgiClient *);
+/* Before a negotiated call: probe a byte-stream server's windows once when the
+ * client's own window is wider than one version (Decision 11), then choose. */
+static int prepare_version(struct VgiClient *c, const char *method,
+                           const struct VgiAnnotatedBatch *input) {
+    if (!negotiated_call(c, method, input)) return 0;
+    if (!c->http && !c->probed && !c->seen &&
+        (c->window.min[0] != c->window.max[0] || c->window.min[1] != c->window.max[1])) {
+        c->probed = 1;
+        list_protocols_probe(c); /* a server without reflection leaves us unlearned */
+        VgiClientClearError(c);
+    }
+    return choose_version(c);
+}
+static int init_versions(struct VgiClient *c, const struct VgiClientOptions *options) {
+    const char *declared = options->protocol_version ? options->protocol_version : "";
+    /* A protocol without a canonical MAJOR.MINOR.PATCH version is not negotiated. */
+    uint64_t parts[3];
+    const char *s = declared;
+    for (int i = 0; i < 3; ++i) {
+        const char *start = s;
+        parts[i] = 0;
+        while (*s >= '0' && *s <= '9') {
+            if (parts[i] > (UINT64_MAX - 9) / 10) return 0;
+            parts[i] = parts[i] * 10 + (uint64_t)(*s++ - '0');
+        }
+        if (s == start || (s - start > 1 && *start == '0')) return 0;
+        if (i < 2 && *s++ != '.') return 0;
+    }
+    if (*s) return 0;
+    struct VgiVersionWindow window = {{parts[0], parts[1]}, {parts[0], parts[1]}};
+    if (options->protocol_version_range && *options->protocol_version_range) {
+        if (VgiVersionWindowParse(options->protocol_version_range,
+                                  strlen(options->protocol_version_range), &window) ||
+            window.max[0] != parts[0] || window.max[1] != parts[1])
+            return EINVAL; /* the range widens protocol_version downward only */
+    }
+    char ranges[512], text[96];
+    VgiVersionWindowFormat(&window, text, sizeof(text));
+    snprintf(ranges, sizeof(ranges), "%s=%s", options->protocol, text);
+    c->client_versions = strdup(ranges);
+    if (!c->client_versions) return ENOMEM;
+    c->window = window;
+    c->patch = parts[2];
+    c->versioned = 1;
+    return 0;
+}
+const char *VgiClientProtocolVersionsAdvertised(const struct VgiClient *c) {
+    return c && c->seen ? c->advertised : NULL;
+}
 const struct VgiClientError *VgiClientLastError(const struct VgiClient *c) { return &c->error; }
 int VgiClientReadMetadata(struct VgiClient *c, const char *metadata) {
+    struct ArrowStringView advertised = VgiMetadataGet(metadata, VGI_RPC_PROTOCOL_VERSIONS_KEY);
+    if (advertised.data) {
+        char *text = text_copy(advertised);
+        if (text) VgiClientObserveVersions(c, text);
+        free(text);
+    }
     struct ArrowStringView level = VgiMetadataGet(metadata, VGI_RPC_LOG_LEVEL_KEY);
     if (!level.data) return 0;
     char *l = text_copy(level),
@@ -122,6 +328,9 @@ int VgiClientReadMetadata(struct VgiClient *c, const char *metadata) {
                        : "[]");
         json_object_put(parsed);
         free(details);
+        if (c->error.kind && (!strcmp(c->error.kind, VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED) ||
+                              !strcmp(c->error.kind, VGI_RPC_PROTOCOL_VERSION_MISMATCH)))
+            observe_refusal(c);
         rc = ECANCELED;
     } else if (c->options.on_log)
         c->options.on_log(c->options.log_state, l, message, *extra_text ? extra_text : "{}");
@@ -158,6 +367,13 @@ int VgiClientRequestMetadata(struct VgiClient *c, const char *method, const char
     for (int i = 0; !rc && i < 4; ++i)
         if (values[i] && *values[i] && !VgiMetadataGet(metadata, keys[i]).data)
             rc = VgiMetadataSet(out, keys[i], values[i]);
+    /* §4.2: the client's own window for the protocol it calls (informational). */
+    struct ArrowStringView routed = VgiMetadataGet((const char *)out->data, VGI_RPC_PROTOCOL_KEY);
+    if (!rc && c->client_versions && !transport_options && routed.data &&
+        routed.size_bytes == (int64_t)strlen(c->protocol) &&
+        !memcmp(routed.data, c->protocol, strlen(c->protocol)) &&
+        !VgiMetadataGet(metadata, VGI_RPC_CLIENT_PROTOCOL_VERSIONS_KEY).data)
+        rc = VgiMetadataSet(out, VGI_RPC_CLIENT_PROTOCOL_VERSIONS_KEY, c->client_versions);
     if (!rc) rc = VgiShmAdvertise(c->shm, out);
     if (!rc) rc = VgiTraceInject(c->trace, out);
     return rc;
@@ -204,6 +420,7 @@ int VgiClientConnect(const struct VgiClientOptions *options, struct VgiClient **
     c->external_enabled = options->external != NULL;
     if (options->external) c->external = *options->external;
     int rc = c->protocol && c->version ? 0 : ENOMEM;
+    if (!rc) rc = init_versions(c, options);
     if (!rc)
         rc = options->transport == VGI_CLIENT_HTTP ? VgiHttpClientInit(c)
                                                    : VgiClientTransportOpen(c);
@@ -230,6 +447,8 @@ void VgiClientFree(struct VgiClient *c) {
     VgiClientClearError(c);
     free(c->protocol);
     free(c->version);
+    free(c->client_versions);
+    free(c->advertised);
     free(c);
 }
 static int request(struct VgiClient *c, const char *method, const struct VgiAnnotatedBatch *input) {
@@ -316,13 +535,30 @@ int VgiClientUnary(struct VgiClient *c, const char *method, const struct VgiAnno
     if (c->streaming)
         return VgiClientSetError(c, "ProtocolError", "FAILED_PRECONDITION",
                                  "Stream is already open");
+    int rc = prepare_version(c, method, input);
+    if (rc) return rc;
     trace_start(c, method, "unary", (const char *)input->metadata.data);
-    int rc;
-    if (c->http)
-        rc = VgiHttpClientUnary(c, method, input, out);
-    else {
-        rc = request(c, method, input);
-        if (!rc) rc = substream(c, out);
+    for (int attempt = 0;; ++attempt) {
+        if (c->http)
+            rc = VgiHttpClientUnary(c, method, input, out);
+        else {
+            rc = request(c, method, input);
+            if (!rc) rc = substream(c, out);
+        }
+        /* §6: after a version refusal, retry once at the renegotiated version,
+         * only for a call that is safe to repeat. Reflection is; this client
+         * cannot see an application method's declared idempotency, so other
+         * refused calls are surfaced and the next call speaks the learned version. */
+        struct ArrowStringView routed =
+            VgiMetadataGet((const char *)input->metadata.data, VGI_RPC_PROTOCOL_KEY);
+        int reflection = routed.data && routed.size_bytes == (int64_t)strlen(VGI_REFLECTION_NAME) &&
+                         !memcmp(routed.data, VGI_REFLECTION_NAME, strlen(VGI_REFLECTION_NAME));
+        if (attempt || rc != ECANCELED || !reflection || !c->error.kind ||
+            (strcmp(c->error.kind, VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED) &&
+             strcmp(c->error.kind, VGI_RPC_PROTOCOL_VERSION_MISMATCH)))
+            break;
+        VgiAnnotatedBatchReset(out);
+        VgiClientClearError(c);
     }
     if (!rc && !out->batch.array.release) rc = EINVAL;
     if (!rc || rc == ECANCELED) VgiShmReset(c->shm);
@@ -344,6 +580,8 @@ int VgiClientStreamOpen(struct VgiClient *c, const char *method,
     if (c->streaming)
         return VgiClientSetError(c, "ProtocolError", "FAILED_PRECONDITION",
                                  "Stream is already open");
+    int prepared = prepare_version(c, method, input);
+    if (prepared) return prepared;
     trace_start(c, method, exchange ? "exchange" : "producer", (const char *)input->metadata.data);
     if (c->http) {
         int rc = VgiHttpClientOpen(c, method, input, exchange, has_header, header);
@@ -501,6 +739,12 @@ static int reflection_call(struct VgiClient *c, const char *method, const char *
     VgiAnnotatedBatchReset(&reply);
     if (schema.release) ArrowSchemaRelease(&schema);
     return failed(c, rc);
+}
+static int list_protocols_probe(struct VgiClient *c) {
+    struct VgiAnnotatedBatch listing = {0};
+    int rc = reflection_call(c, "list_protocols", NULL, &listing);
+    VgiAnnotatedBatchReset(&listing);
+    return rc;
 }
 int VgiClientDescribe(struct VgiClient *c, struct VgiAnnotatedBatch *listing,
                       struct VgiAnnotatedBatch *description) {

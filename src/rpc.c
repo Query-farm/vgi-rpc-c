@@ -32,6 +32,11 @@ struct VgiRpcServer {
     int started;
     int (*on_start)(void *, enum VgiTransportKind, struct ArrowError *);
     void *start_state;
+    /* PROTOCOL_VERSIONS_V1: per-protocol window overrides (name, range text),
+     * and the advertisement rebuilt whenever protocols or overrides change. */
+    char **override_names, **override_ranges;
+    size_t override_count;
+    char *versions;
 };
 
 static char *copy_text(const char *s) {
@@ -233,6 +238,13 @@ void VgiRpcServerFree(struct VgiRpcServer *server) {
         free(m);
     }
     free(server->protocols);
+    for (size_t i = 0; i < server->override_count; ++i) {
+        free(server->override_names[i]);
+        free(server->override_ranges[i]);
+    }
+    free(server->override_names);
+    free(server->override_ranges);
+    free(server->versions);
     pthread_mutex_destroy(&server->start_mutex);
     free(server);
 }
@@ -244,6 +256,89 @@ static const struct VgiRpcProtocol *find_protocol(struct VgiRpcServer *server, c
         if (!strcmp(server->protocols[i].name, name)) return &server->protocols[i];
     return NULL;
 }
+/* ------------------------------------------------------------------------- */
+/* Protocol version windows (PROTOCOL_VERSIONS_V1)                           */
+/* ------------------------------------------------------------------------- */
+
+static int parse_window(const char *text, struct VgiVersionWindow *out) {
+    return VgiVersionWindowParse(text, strlen(text), out);
+}
+/* The window a protocol is gated against: its override, else exactly its
+ * declared version's major.minor. Zero when the protocol is not gated. */
+static int protocol_window(const struct VgiRpcServer *server, const struct VgiRpcProtocol *protocol,
+                           struct VgiVersionWindow *out) {
+    if (!protocol->version || !*protocol->version) return 0;
+    for (size_t i = 0; i < server->override_count; ++i)
+        if (!strcmp(server->override_names[i], protocol->name))
+            return !parse_window(server->override_ranges[i], out);
+    return !VgiVersionMajorMinor(protocol->version, strlen(protocol->version), out->min) &&
+           (out->max[0] = out->min[0], out->max[1] = out->min[1], 1);
+}
+static int rebuild_versions(struct VgiRpcServer *server) {
+    struct ArrowBuffer text;
+    ArrowBufferInit(&text);
+    int rc = 0;
+    for (size_t i = 0; !rc && i < server->count; ++i) {
+        struct VgiVersionWindow w;
+        if (!protocol_window(server, &server->protocols[i], &w)) continue;
+        char entry[512], window[96];
+        VgiVersionWindowFormat(&w, window, sizeof(window));
+        int n = snprintf(entry, sizeof(entry), "%s%s=%s", text.size_bytes ? ", " : "",
+                         server->protocols[i].name, window);
+        rc = n < 0 || (size_t)n >= sizeof(entry) ? EINVAL : ArrowBufferAppend(&text, entry, n);
+    }
+    if (!rc) rc = ArrowBufferAppend(&text, "", 1);
+    if (!rc) {
+        free(server->versions);
+        server->versions = copy_text((const char *)text.data);
+        if (!server->versions) rc = ENOMEM;
+    }
+    ArrowBufferReset(&text);
+    return rc;
+}
+const char *VgiRpcServerProtocolVersions(struct VgiRpcServer *server) {
+    return server && server->versions ? server->versions : "";
+}
+int VgiRpcServerSetProtocolVersionRange(struct VgiRpcServer *server, const char *protocol,
+                                        const char *range) {
+    if (!server || !protocol || !*protocol) return EINVAL;
+    if (server->serving) return EBUSY;
+    struct VgiVersionWindow check;
+    if (range && *range && parse_window(range, &check)) return EINVAL;
+    size_t i = 0;
+    while (i < server->override_count && strcmp(server->override_names[i], protocol)) ++i;
+    if (!range || !*range) {
+        if (i < server->override_count) {
+            free(server->override_names[i]);
+            free(server->override_ranges[i]);
+            --server->override_count;
+            server->override_names[i] = server->override_names[server->override_count];
+            server->override_ranges[i] = server->override_ranges[server->override_count];
+        }
+        return rebuild_versions(server);
+    }
+    char *value = copy_text(range);
+    if (!value) return ENOMEM;
+    if (i < server->override_count) {
+        free(server->override_ranges[i]);
+        server->override_ranges[i] = value;
+        return rebuild_versions(server);
+    }
+    char **names = realloc(server->override_names, (i + 1) * sizeof(*names));
+    if (names) server->override_names = names;
+    char **ranges = names ? realloc(server->override_ranges, (i + 1) * sizeof(*ranges)) : NULL;
+    if (ranges) server->override_ranges = ranges;
+    char *name = ranges ? copy_text(protocol) : NULL;
+    if (!name) {
+        free(value);
+        return ENOMEM;
+    }
+    server->override_names[i] = name;
+    server->override_ranges[i] = value;
+    server->override_count = i + 1;
+    return rebuild_versions(server);
+}
+
 static struct VgiRpcProtocol reflection_protocol(struct VgiRpcServer *server) {
     return (struct VgiRpcProtocol){VGI_REFLECTION_NAME,
                                    "",
@@ -286,7 +381,7 @@ static int add_protocol(struct VgiRpcServer *server, const struct VgiRpcProtocol
     }
     server->protocols = next;
     server->protocols[server->count++] = owned;
-    return 0;
+    return rebuild_versions(server);
 }
 
 int VgiRpcServerAddProtocol(struct VgiRpcServer *s, const struct VgiRpcProtocol *p,
@@ -407,6 +502,11 @@ static int reflection(void *state, struct VgiRpcCall *call, struct VgiRpcReply *
     }
     if (!rc) rc = VgiBatchFinishRow(&payload, &call->error);
     if (!rc) rc = VgiRpcReplyPayload(call, reply, &payload);
+    /* Reflection is answerable at any version, so it is where a client on any
+     * transport learns the windows; present even when empty (§4.1). */
+    if (!rc)
+        rc = VgiMetadataSet(&reply->metadata, VGI_RPC_PROTOCOL_VERSIONS_KEY,
+                            VgiRpcServerProtocolVersions(server));
     VgiBatchReset(&payload);
     return rc;
 }
@@ -488,6 +588,9 @@ int VgiRpcErrorMetadata(struct VgiRpcCall *call, struct ArrowBuffer *metadata) {
                             json_object_to_json_string_ext(extra, JSON_C_TO_STRING_PLAIN));
     if (!rc) rc = VgiMetadataSet(metadata, VGI_RPC_ERROR_CODE_KEY, code);
     if (!rc && *kind) rc = VgiMetadataSet(metadata, VGI_RPC_ERROR_KIND_KEY, kind);
+    if (!rc && !strcmp(kind, VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED))
+        rc = VgiMetadataSet(metadata, VGI_RPC_PROTOCOL_VERSIONS_KEY,
+                            VgiRpcServerProtocolVersions(call->server));
     if (!rc) rc = VgiMetadataSet(metadata, VGI_RPC_SERVER_ID_KEY, call->server->id);
     if (!rc) rc = VgiMetadataSet(metadata, VGI_RPC_REQUEST_ID_KEY, call->request_id);
     json_object_put(extra);
@@ -519,45 +622,124 @@ static int semver(const char *text, uint64_t out[3]) {
     }
     return *text ? EINVAL : 0;
 }
-static int validate_version(struct VgiRpcCall *call, const char *version) {
-    if (!version || !*version) return 0;
-    char *client =
-        view_text(VgiMetadataGet((const char *)call->metadata.data, VGI_RPC_PROTOCOL_VERSION_KEY));
-    if (!client) return ENOMEM;
-    uint64_t actual[3], expected[3];
-    int invalid = semver(client, actual) || semver(version, expected);
-    int mismatch = invalid || actual[0] != expected[0] || actual[1] != expected[1];
-    if (mismatch) {
-        call->error_type = "ProtocolVersionError";
-        call->error_code = "FAILED_PRECONDITION";
-        call->error_kind = "protocol_version_mismatch";
-        ArrowErrorSet(
-            &call->error, "protocol_version mismatch for %s. Client: %s. Server: %s. %s",
-            call->protocol, *client ? client : "<not declared>", version,
-            invalid ? "Client must send canonical MAJOR.MINOR.PATCH."
-            : (actual[0] < expected[0] || (actual[0] == expected[0] && actual[1] < expected[1]))
-                ? "Client is too old; upgrade the VGI extension/client."
-                : "Server is too old; upgrade the VGI worker.");
+static int utf8_valid(const char *text, size_t n) {
+    const unsigned char *s = (const unsigned char *)text;
+    for (size_t i = 0; i < n;) {
+        unsigned char c = s[i];
+        size_t extra = c < 0x80             ? 0
+                       : (c & 0xE0) == 0xC0 ? 1
+                       : (c & 0xF0) == 0xE0 ? 2
+                       : (c & 0xF8) == 0xF0 ? 3
+                                            : 9;
+        if (extra == 9 || (extra == 1 && c < 0xC2) || i + extra >= n) return 0;
+        for (size_t k = 1; k <= extra; ++k)
+            if ((s[i + k] & 0xC0) != 0x80) return 0;
+        i += extra + 1;
     }
-    if (mismatch) {
-        struct json_object *details = json_object_new_array(), *detail = json_object_new_object(),
-                           *violations = json_object_new_array(),
-                           *violation = json_object_new_object();
-        json_object_object_add(detail, "@type",
-                               json_object_new_string("vgi_rpc.PreconditionFailure"));
-        json_object_object_add(violation, "type", json_object_new_string("protocol_version"));
-        json_object_object_add(violation, "subject", json_object_new_string(call->protocol));
-        json_object_object_add(violation, "description",
-                               json_object_new_string(call->error.message));
-        json_object_array_add(violations, violation);
-        json_object_object_add(detail, "violations", violations);
-        json_object_array_add(details, detail);
-        VgiRpcSetErrorDetails(call,
-                              json_object_to_json_string_ext(details, JSON_C_TO_STRING_PLAIN));
-        json_object_put(details);
+    return 1;
+}
+/* PROTOCOL_VERSIONS_V1 §4.3: refuse an absent, malformed or out-of-window
+ * vgi_rpc.protocol_version with protocol_version_unsupported, naming both sides
+ * and which to upgrade, with the windows machine-readable. */
+static int refuse_version(struct VgiRpcCall *call, const char *client_version,
+                          const char *client_ranges, const char *server_range,
+                          const char *message) {
+    call->error_type = "ProtocolVersionError";
+    call->error_code = "FAILED_PRECONDITION";
+    call->error_kind = VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED;
+    ArrowErrorSet(&call->error, "%s", message);
+    char description[512];
+    snprintf(description, sizeof(description), "client declares %s, server supports %s",
+             client_version && *client_version ? client_version : "<none>", server_range);
+    struct json_object *details = json_object_new_array(), *failure = json_object_new_object(),
+                       *violations = json_object_new_array(), *violation = json_object_new_object(),
+                       *info = json_object_new_object(), *metadata = json_object_new_object();
+    json_object_object_add(failure, "@type", json_object_new_string("vgi_rpc.PreconditionFailure"));
+    json_object_object_add(violation, "type", json_object_new_string("protocol_version"));
+    json_object_object_add(violation, "subject", json_object_new_string(call->protocol));
+    json_object_object_add(violation, "description", json_object_new_string(description));
+    json_object_array_add(violations, violation);
+    json_object_object_add(failure, "violations", violations);
+    json_object_array_add(details, failure);
+    json_object_object_add(info, "@type", json_object_new_string("vgi_rpc.ErrorInfo"));
+    json_object_object_add(metadata, VGI_RPC_PROTOCOL_VERSIONS_KEY,
+                           json_object_new_string(VgiRpcServerProtocolVersions(call->server)));
+    if (client_ranges && *client_ranges && utf8_valid(client_ranges, strlen(client_ranges)))
+        json_object_object_add(metadata, VGI_RPC_CLIENT_PROTOCOL_VERSIONS_KEY,
+                               json_object_new_string(client_ranges));
+    json_object_object_add(info, "metadata", metadata);
+    json_object_array_add(details, info);
+    VgiRpcSetErrorDetails(call, json_object_to_json_string_ext(details, JSON_C_TO_STRING_PLAIN));
+    json_object_put(details);
+    return EINVAL;
+}
+static int validate_version(struct VgiRpcCall *call, const struct VgiRpcProtocol *protocol) {
+    struct VgiVersionWindow window;
+    if (!protocol_window(call->server, protocol, &window)) return 0;
+    const char *md = (const char *)call->metadata.data;
+    struct ArrowStringView version_view = VgiMetadataGet(md, VGI_RPC_PROTOCOL_VERSION_KEY);
+    char *client = version_view.data ? view_text(version_view) : NULL;
+    char *ranges = view_text(VgiMetadataGet(md, VGI_RPC_CLIENT_PROTOCOL_VERSIONS_KEY));
+    if ((version_view.data && !client) || !ranges) {
+        free(client);
+        free(ranges);
+        return ENOMEM;
+    }
+    const char *p = protocol->name;
+    char range[96], speaks[512], message[1536];
+    VgiVersionWindowFormat(&window, range, sizeof(range));
+    uint64_t parts[3];
+    int rc = 0;
+    if (!client) {
+        snprintf(message, sizeof(message),
+                 VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED
+                 ": the client did not send vgi_rpc.protocol_version for %s; this server supports "
+                 "%s %s. This is either a vgi-rpc framework bug or a non-VGI client connecting to "
+                 "a VGI worker.",
+                 p, p, range);
+        rc = refuse_version(call, NULL, ranges, range, message);
+    } else if (strlen(client) != (size_t)version_view.size_bytes ||
+               !utf8_valid(client, strlen(client))) {
+        snprintf(message, sizeof(message),
+                 VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED
+                 ": the client sent a non-UTF-8 protocol_version for %s; this server supports %s "
+                 "%s.",
+                 p, p, range);
+        rc = refuse_version(call, "<undecodable>", ranges, range, message);
+    } else if (semver(client, parts)) {
+        snprintf(message, sizeof(message),
+                 VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED
+                 ": the client sent a malformed protocol_version '%.64s' for %s (expected "
+                 "canonical semver MAJOR.MINOR.PATCH); this server supports %s %s.",
+                 client, p, p, range);
+        rc = refuse_version(call, client, ranges, range, message);
+    } else if (!VgiVersionWindowContains(&window, parts)) {
+        char supports[96];
+        struct VgiVersionWindow theirs;
+        int has = VgiVersionsFind(ranges, p, &theirs);
+        if (has) VgiVersionWindowFormat(&theirs, supports, sizeof(supports));
+        snprintf(speaks, sizeof(speaks), "client speaks %s %llu.%llu%s%s%s", p,
+                 (unsigned long long)parts[0], (unsigned long long)parts[1],
+                 has ? " (supports " : "", has ? supports : "", has ? ")" : "");
+        if (parts[0] < window.min[0] || (parts[0] == window.min[0] && parts[1] < window.min[1]))
+            snprintf(message, sizeof(message),
+                     VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED
+                     ": %s; this server supports %s %s. The client is too old (this server is too "
+                     "new for it). Upgrade the client, or use a worker that supports %s %llu.%llu.",
+                     speaks, p, range, p, (unsigned long long)parts[0],
+                     (unsigned long long)parts[1]);
+        else
+            snprintf(message, sizeof(message),
+                     VGI_RPC_PROTOCOL_VERSION_UNSUPPORTED
+                     ": %s; this server supports %s %s. The server is too old (the client is too "
+                     "new for it). Upgrade the worker, or use a client that supports %s %llu.%llu.",
+                     speaks, p, range, p, (unsigned long long)window.max[0],
+                     (unsigned long long)window.max[1]);
+        rc = refuse_version(call, client, ranges, range, message);
     }
     free(client);
-    return mismatch ? EINVAL : 0;
+    free(ranges);
+    return rc;
 }
 
 static int same_field(const struct ArrowSchema *a, const struct ArrowSchema *b) {
@@ -735,7 +917,7 @@ int VgiRpcPrepare(struct VgiRpcCall *call, const char *route_protocol, const cha
         rc = VgiRpcFail(call, "ProtocolNotSupportedError", "UNIMPLEMENTED",
                         "protocol_not_supported", "Requested protocol is not hosted");
     if (protocol) call->protocol = protocol->name;
-    if (!rc) rc = validate_version(call, protocol->version);
+    if (!rc) rc = validate_version(call, protocol);
     if (!rc) {
         for (size_t i = 0; i < protocol->method_count; ++i)
             if (!strcmp(protocol->methods[i].name, method_name))
@@ -759,6 +941,9 @@ int VgiRpcInvoke(struct VgiRpcCall *call, struct VgiRpcReply *reply) {
             rc =
                 VgiMetadataSet(&reply->metadata, "vgi_rpc.transport.shm", local ? "true" : "false");
         if (!rc) rc = VgiMetadataSet(&reply->metadata, VGI_RPC_REQUEST_VERSION_KEY, "1");
+        if (!rc)
+            rc = VgiMetadataSet(&reply->metadata, VGI_RPC_PROTOCOL_VERSIONS_KEY,
+                                VgiRpcServerProtocolVersions(call->server));
         return rc;
     }
     struct VgiRpcProtocol self = reflection_protocol(call->server);

@@ -41,6 +41,16 @@ struct VgiClientOptions {
     int64_t shared_memory_size;      /* Zero disables; stdio and local IPC only. */
     int64_t shared_memory_threshold; /* 128 KiB default; zero forces eligible batches. */
     struct VgiTelemetry *telemetry;  /* Borrowed; outlives the client. */
+    /* PROTOCOL_VERSIONS_V1: the MAJOR.MINOR window this client speaks for
+     * `protocol` ("3.4-3.5"); it must end at protocol_version's major.minor.
+     * NULL means exactly protocol_version. The client negotiates per endpoint:
+     * it learns the server's windows from VGI-Protocol-Versions / the
+     * vgi_rpc.protocol_versions key on responses and refusals (or the version
+     * a pre-negotiation refusal names), speaks the highest common major.minor
+     * with protocol_version's patch, sends its own window as
+     * vgi_rpc.protocol_versions_client, and fails a call without sending when
+     * the windows are disjoint (kind protocol_version_unsupported). */
+    const char *protocol_version_range;
 };
 struct VgiClientError {
     /* Owned by the client; valid until its next operation or close. */
@@ -76,6 +86,9 @@ int VgiClientStreamExchange(struct VgiClient *, const struct VgiAnnotatedBatch *
 int VgiClientStreamClose(struct VgiClient *, int cancel);
 /* Borrowed latest cursor; NULL on byte-stream transports or terminal streams. */
 const char *VgiClientStreamToken(const struct VgiClient *);
+/* The server's last advertisement (VGI-Protocol-Versions), or NULL before
+ * one was seen. Borrowed; valid until the next call. */
+const char *VgiClientProtocolVersionsAdvertised(const struct VgiClient *);
 /* HTTP capabilities are read at connection time. */
 const struct VgiClientCapabilities *VgiClientCapabilities(const struct VgiClient *);
 /* One upload: exact body length (>= 1) and its lowercase hex SHA-256. */

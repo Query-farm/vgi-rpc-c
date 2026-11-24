@@ -24,6 +24,19 @@ client supports HTTPS directly. Configure `token_key` as a shared 64-digit hex
 key when stateless continuations can land on different workers. The default is a
 random process key. Stateless callbacks are described in [the server guide](server.md#streams).
 
+## Protocol versions
+
+Every protocol registered with a `version` is gated: a request's
+`vgi_rpc.protocol_version` must lie inside the protocol's MAJOR.MINOR window,
+which is exactly the declared version's unless
+`VgiRpcServerSetProtocolVersionRange` widens or moves it. The windows are
+advertised as `VGI-Protocol-Versions: vgi.v3=3.4-3.4, ...` on every HTTP
+response and as `vgi_rpc.protocol_versions` on reflection results,
+`__transport_options__` replies and refusals on every transport. A refusal is
+`protocol_version_unsupported` (`FAILED_PRECONDITION`, HTTP 400), naming both
+windows and which side to upgrade; reflection answers any version
+(vgi-rpc `PROTOCOL_VERSIONS_V1.md`).
+
 ## Authentication and identity
 
 `bearer_tokens` and `optional_bearer_tokens` configure token-to-principal mappings.

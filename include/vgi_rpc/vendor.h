@@ -95,7 +95,20 @@ int VgiVendorDeleteBlobs(struct VgiVendor *, const char *const *object_ids, size
 int VgiVendorDeleteScope(struct VgiVendor *, const struct VgiVendorScope *, int64_t *deleted,
                          struct ArrowError *);
 
-/* External options from the environment. With VGI_BLOB_VENDOR_URL unset,
+/* Direct object storage contract v1 §1: VGI_STORAGE_BACKEND selects vendor,
+ * s3, gcs or none; unset, VGI_BLOB_VENDOR_URL selects the vendor, else
+ * VGI_STORAGE_S3_BUCKET s3, else VGI_STORAGE_GCS_BUCKET gcs, else none, and
+ * more than one of the three without VGI_STORAGE_BACKEND is refused. The C SDK
+ * is vendor-only in protocol 3.4, so s3 and gcs (explicit or implied) are
+ * refused with ENOTSUP and a message saying so; a worker refuses to start. */
+#define VGI_STORAGE_BACKEND_ENV "VGI_STORAGE_BACKEND"
+#define VGI_STORAGE_S3_BUCKET_ENV "VGI_STORAGE_S3_BUCKET"
+#define VGI_STORAGE_GCS_BUCKET_ENV "VGI_STORAGE_GCS_BUCKET"
+enum VgiStorageBackend { VGI_STORAGE_BACKEND_NONE, VGI_STORAGE_BACKEND_VENDOR };
+int VgiStorageBackendFromEnv(enum VgiStorageBackend *, struct ArrowError *);
+
+/* External options from the environment. With VGI_BLOB_VENDOR_URL unset (or
+ * VGI_STORAGE_BACKEND=none), and for VgiVendorFromEnv likewise,
  * *vendor is NULL, *external is untouched and 0 is returned. Otherwise
  * *external is initialized, bound to a new vendor, and given
  * VGI_RPC_EXTERNALIZE_THRESHOLD_BYTES, VGI_RPC_EXTERNAL_COMPRESSION and the

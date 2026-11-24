@@ -46,7 +46,7 @@ find_package(ZLIB REQUIRED)
 set(VGI_RPC_COMMON_SOURCES
     src/common.c src/schema.c src/ipc.c src/stream.c src/batch.c src/crypto.c src/http_codec.c
     src/generated/protocol.c src/external.c src/client.c src/client_io.c
-    src/client_transport.c src/client_http.c src/shm.c)
+    src/client_transport.c src/client_http.c src/shm.c src/protocol_versions.c)
 if(VGI_RPC_CLIENT_ONLY)
     add_library(vgi_rpc ${VGI_RPC_COMMON_SOURCES} src/telemetry_client.c)
     target_compile_definitions(vgi_rpc PRIVATE VGI_RPC_CLIENT_ONLY=1)

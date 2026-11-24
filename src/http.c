@@ -162,7 +162,7 @@ static enum bufferevent_filter_result wire_output(struct evbuffer *source,
                 return BEV_ERROR;
             }
             header[length] = 0;
-            int status = 0, supported = 0;
+            int status = 0, supported = 0, versions = 0;
             int64_t body_length = -1;
             if (sscanf(header, "HTTP/%*u.%*u %d", &status) != 1) {
                 free(header);
@@ -172,6 +172,9 @@ static enum bufferevent_filter_result wire_output(struct evbuffer *source,
             for (char *line = strtok_r(header, "\r\n", &save); line;
                  line = strtok_r(NULL, "\r\n", &save)) {
                 if (!strncasecmp(line, "VGI-Accept-Max-Response-Bytes-Support:", 38)) supported = 1;
+                if (!strncasecmp(line, VGI_RPC_PROTOCOL_VERSIONS_HEADER ":",
+                                 sizeof(VGI_RPC_PROTOCOL_VERSIONS_HEADER)))
+                    versions = 1;
                 if (!strncasecmp(line, "Content-Length:", 15)) {
                     char *tail = NULL;
                     errno = 0;
@@ -190,6 +193,12 @@ static enum bufferevent_filter_result wire_output(struct evbuffer *source,
             if (evbuffer_remove_buffer(source, destination, length - 2) < 0) return BEV_ERROR;
             static const char capability[] = "VGI-Accept-Max-Response-Bytes-Support: true\r\n";
             if (!supported && evbuffer_add(destination, capability, sizeof(capability) - 1))
+                return BEV_ERROR;
+            /* PROTOCOL_VERSIONS_V1 §4.1: every response, including libevent's own
+             * parser errors (413, 400) and the bare 500s, advertises the windows. */
+            if (!versions &&
+                evbuffer_add_printf(destination, VGI_RPC_PROTOCOL_VERSIONS_HEADER ": %s\r\n",
+                                    VgiRpcServerProtocolVersions(wire->server->rpc)) < 0)
                 return BEV_ERROR;
             if (evbuffer_remove_buffer(source, destination, 2) < 0) return BEV_ERROR;
             wire->remaining = body_length;
@@ -1750,7 +1759,7 @@ static void capabilities(struct HttpServer *server, struct evhttp_request *reque
                 h, "Access-Control-Allow-Headers",
                 "Content-Type, Authorization, X-Request-ID, X-VGI-Accept-Encoding, "
                 "X-VGI-Content-Encoding, VGI-Accept-Max-Response-Bytes, VGI-Proxy-Proof, "
-                "VGI-Session, VGI-Session-Accept");
+                "VGI-Session, VGI-Session-Accept, VGI-Client-Protocol-Versions");
             evhttp_add_header(
                 h, "Access-Control-Expose-Headers",
                 "X-Request-ID, X-VGI-RPC-Error, X-VGI-Content-Encoding, VGI-Supported-Encodings, "
@@ -1759,7 +1768,7 @@ static void capabilities(struct HttpServer *server, struct evhttp_request *reque
                 "VGI-Proxy-Proof-Required, VGI-Auth-Proxy-Required, VGI-Sticky-Enabled, "
                 "VGI-Sticky-Default-TTL, VGI-Sticky-Echo-Headers, VGI-Session, VGI-Session-Close, "
                 "VGI-Upload-URL-Support, VGI-Max-Upload-Bytes, "
-                "VGI-Max-Externalized-Response-Bytes");
+                "VGI-Max-Externalized-Response-Bytes, VGI-Protocol-Versions");
             for (size_t i = 0; i < server->options.capability_header_count; ++i)
                 evhttp_add_header(h, "Access-Control-Expose-Headers",
                                   server->options.capability_header_names[i]);

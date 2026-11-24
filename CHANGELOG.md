@@ -5,6 +5,35 @@ All notable changes to `vgi-rpc-c` are listed here. The API may change between
 
 ## [Unreleased]
 
+Protocol version negotiation (vgi-rpc `PROTOCOL_VERSIONS_V1`).
+
+- Servers advertise every gated protocol's window (`name=MIN-MAX`):
+  `VGI-Protocol-Versions` on every HTTP response, including 401, 404, 413,
+  5xx, `HEAD`/`OPTIONS /health` and CORS preflights (exposed, and preflights
+  allow `VGI-Client-Protocol-Versions`), and `vgi_rpc.protocol_versions` on
+  reflection results, `__transport_options__` replies and refusals on every
+  transport. `VgiRpcServerProtocolVersions` returns it.
+- A request outside the window (or without a version) is refused as
+  `protocol_version_unsupported` / `FAILED_PRECONDITION` (was
+  `protocol_version_mismatch`), naming both windows and which side to upgrade,
+  with a `PreconditionFailure` and an `ErrorInfo` carrying the windows.
+  Reflection answers any version. `VgiRpcServerSetProtocolVersionRange`
+  overrides a protocol's window (fixtures impersonating older servers).
+- The client negotiates per connection: it sends
+  `vgi_rpc.protocol_versions_client` (and the HTTP header), learns windows
+  from responses and refusals (or the version a pre-negotiation refusal
+  names), speaks the highest common version with its own patch, and fails a
+  call without sending once the windows are known to be disjoint.
+  `VgiClientOptions.protocol_version_range` declares a wider window;
+  `VgiClientProtocolVersionsAdvertised` reads what was learned.
+- `<vgi_rpc/protocol_versions.h>`: names and window parsing.
+
+Direct object storage contract v1: `VgiStorageBackendFromEnv`. The C SDK
+stays vendor-only in 3.4: `VGI_STORAGE_BACKEND=s3|gcs`, or an
+`VGI_STORAGE_S3_BUCKET` / `VGI_STORAGE_GCS_BUCKET` that implies one, is refused
+with a message saying so (`ENOTSUP`); several backends configured without an
+explicit choice are refused; `VGI_STORAGE_BACKEND=none` turns the vendor off.
+
 Storage timeouts: slow transfers no longer fail.
 
 - Every storage request (`VgiExternalHttp`: result and grant PUTs, pointer,

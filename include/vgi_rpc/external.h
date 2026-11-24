@@ -31,6 +31,10 @@ struct VgiExternalOptions {
     int64_t max_fetch_bytes;
     int64_t max_decompressed_bytes;
     unsigned max_redirects;
+    /* Stall (idle) timeout for every storage request: the request fails only
+     * when no bytes move, in either direction, for this many seconds. There is
+     * no whole-request deadline, so a slow transfer that keeps progressing is
+     * never cut off. Default VGI_RPC_STORAGE_STALL_TIMEOUT_SECONDS, else 30. */
     unsigned timeout_seconds;
     const char *compression; /* NULL, identity, or zstd. */
     /* Zero accepts. Called before every fetch, including each redirect hop.
@@ -76,12 +80,25 @@ struct VgiExternalOptions {
      * zero (the default) means max_fetch_bytes. Never above max_fetch_bytes, so
      * a client is never granted an upload this server could not fetch back. */
     int64_t max_upload_bytes;
+    /* TCP + TLS connect timeout per attempt; zero means 30 seconds. */
+    unsigned connect_timeout_seconds;
+    /* Attempts per storage request; zero means 3. Connect errors, resets,
+     * stalls, 429 and 5xx are retried with capped exponential backoff
+     * (0.25 s doubling, at most 5 s, jittered). A retry resends the whole
+     * body: a pre-signed PUT cannot resume. */
+    unsigned attempts;
 };
+/* Overrides the stall timeout default (whole seconds, at least 1). */
+#define VGI_RPC_STORAGE_STALL_TIMEOUT_ENV "VGI_RPC_STORAGE_STALL_TIMEOUT_SECONDS"
 struct VgiExternalRef {
     char *location;
     char sha256[65];
 };
+/* Defaults; timeout_seconds reads VGI_RPC_STORAGE_STALL_TIMEOUT_SECONDS
+ * (malformed or out-of-range values fall back to 30). */
 void VgiExternalOptionsInit(struct VgiExternalOptions *);
+/* The stall timeout from VGI_RPC_STORAGE_STALL_TIMEOUT_SECONDS, else 30. */
+unsigned VgiStorageStallTimeoutSeconds(void);
 void VgiExternalUploadUrlReset(struct VgiExternalUploadUrl *);
 /* Append one header (both strings copied) to an upload URL's header list. */
 int VgiExternalUploadUrlAddHeader(struct VgiExternalUploadUrl *, const char *name,

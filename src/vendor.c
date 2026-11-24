@@ -786,7 +786,11 @@ int VgiVendorNew(const char *url, const char *token, const struct VgiVendorOptio
     size_t n = strlen(v->base);
     while (n && v->base[n - 1] == '/') v->base[--n] = 0;
     VgiExternalOptionsInit(&v->storage);
-    v->storage.timeout_seconds = v->options.timeout_seconds * 4;
+    /* Signed-URL transfers keep the stall timeout VgiExternalOptionsInit set
+     * (VGI_RPC_STORAGE_STALL_TIMEOUT_SECONDS, else 30): a whole-request
+     * deadline would cut off a slow transfer that is still progressing. The
+     * vendor's own JSON calls are small and keep timeout_seconds as a total. */
+    v->storage.attempts = v->options.attempts;
     v->storage.max_redirects = 0;
     v->storage.validate_url = validate_callback;
     v->storage.validate_state = v;

@@ -46,7 +46,7 @@ extern "C" {
 
 struct VgiVendor;
 struct VgiVendorOptions {
-    unsigned timeout_seconds;  /* per request; default 30 */
+    unsigned timeout_seconds;  /* vendor JSON calls, total per request; default 30 */
     unsigned attempts;         /* transport errors, 429 and 5xx retried; default 3 */
     unsigned info_ttl_seconds; /* /v1/info host pin cache; default 600 */
 };

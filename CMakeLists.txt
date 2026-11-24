@@ -128,6 +128,11 @@ if(VGI_RPC_BUILD_TESTS AND NOT VGI_RPC_CLIENT_ONLY)
     target_link_libraries(vgi-rpc-vendor-test PRIVATE vgi_rpc::vgi_rpc PkgConfig::SODIUM
         PkgConfig::JSONC)
     add_test(NAME vendor COMMAND vgi-rpc-vendor-test)
+    # Slow-but-progressing transfers finish in one attempt; stalls fail fast.
+    add_executable(vgi-rpc-storage-timeout-test tests/storage_timeout_test.c)
+    target_include_directories(vgi-rpc-storage-timeout-test PRIVATE src)
+    target_link_libraries(vgi-rpc-storage-timeout-test PRIVATE vgi_rpc::vgi_rpc Threads::Threads)
+    add_test(NAME storage_timeout COMMAND vgi-rpc-storage-timeout-test)
     add_executable(vgi-rpc-jwt-test tests/jwt_test.c)
     target_include_directories(vgi-rpc-jwt-test PRIVATE src)
     target_link_libraries(vgi-rpc-jwt-test PRIVATE vgi_rpc::vgi_rpc PkgConfig::LIBCRYPTO

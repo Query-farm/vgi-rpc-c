@@ -159,6 +159,15 @@ Pre-published references can be returned on every transport. Automatic output
 threshold externalization is currently an HTTP server feature; raw workers can
 return pre-published references explicitly.
 
+Storage HTTP (every PUT and GET of an external payload, grant, object or
+signed vendor URL) has a 30 s connect timeout (`connect_timeout_seconds`) and
+a stall timeout (`timeout_seconds`), with no whole-request deadline. A request
+fails only when no bytes move in either direction for `timeout_seconds`. The
+default is `VGI_RPC_STORAGE_STALL_TIMEOUT_SECONDS`, else 30. Connect errors,
+resets, stalls, 429 and 5xx are retried (`attempts`, default 3) with 0.25 s
+doubling backoff capped at 5 s and jittered; a retry resends the whole body,
+because a pre-signed PUT cannot resume.
+
 Resolution on client and server validates the URL on every redirect hop, bounds
 encoded and decompressed bytes, checks the SHA-256 digest (required on request
 pointers, which are refused without `vgi_rpc.location.sha256`), and verifies

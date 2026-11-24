@@ -21,8 +21,19 @@ void VgiExternalOptionsInit(struct VgiExternalOptions *o) {
     o->max_fetch_bytes = 1024 * 1024 * 1024;
     o->max_decompressed_bytes = 1024 * 1024 * 1024;
     o->max_redirects = 5;
-    o->timeout_seconds = 30;
+    o->timeout_seconds = VgiStorageStallTimeoutSeconds();
+    o->connect_timeout_seconds = 30;
+    o->attempts = 3;
     o->validate_url = https_only;
+}
+unsigned VgiStorageStallTimeoutSeconds(void) {
+    const char *text = getenv(VGI_RPC_STORAGE_STALL_TIMEOUT_ENV);
+    if (!text || !*text) return 30;
+    char *end = NULL;
+    errno = 0;
+    unsigned long value = strtoul(text, &end, 10);
+    if (errno || *end || *text == '-' || value < 1 || value > 86400) return 30;
+    return (unsigned)value;
 }
 void VgiExternalUploadUrlReset(struct VgiExternalUploadUrl *url) {
     free(url->upload_url);
@@ -71,6 +82,12 @@ struct Download {
     char encoding[32];
     int64_t limit;
     int error;
+    /* Stall detection: when bytes last moved, in either direction. */
+    CURL *curl;
+    unsigned stall_seconds;
+    double last_progress;
+    curl_off_t last_down, last_up;
+    int stalled;
 };
 static CURLcode curl_initialized;
 static void curl_start(void) { curl_initialized = curl_global_init(CURL_GLOBAL_DEFAULT); }
@@ -124,6 +141,30 @@ static size_t receive_header(char *data, size_t size, size_t count, void *state)
     }
     return n;
 }
+/* Abort when no bytes have moved, either way, for stall_seconds once the
+ * connection is up (connect has its own timeout). libcurl calls this about
+ * once a second even while idle. This is exact where CURLOPT_LOW_SPEED_TIME,
+ * which averages over a few seconds of samples, overshoots by several. */
+static int on_progress(void *state, curl_off_t down_total, curl_off_t down_now, curl_off_t up_total,
+                       curl_off_t up_now) {
+    (void)down_total;
+    (void)up_total;
+    struct Download *d = state;
+    double now = VgiMonotonicSeconds();
+    curl_off_t connected = 0;
+    curl_easy_getinfo(d->curl, CURLINFO_PRETRANSFER_TIME_T, &connected);
+    if (!connected || down_now != d->last_down || up_now != d->last_up || !d->last_progress) {
+        d->last_down = down_now;
+        d->last_up = up_now;
+        d->last_progress = now;
+        return 0;
+    }
+    if (now - d->last_progress >= (double)d->stall_seconds) {
+        d->stalled = 1;
+        return 1;
+    }
+    return 0;
+}
 /* S3-style error bodies name the refusal in <Code>; surface it (never the URL). */
 static void storage_error_code(const struct ArrowBuffer *body, char *out, size_t size) {
     *out = 0;
@@ -142,6 +183,129 @@ static void storage_error_code(const struct ArrowBuffer *body, char *out, size_t
             return;
     memcpy(out, start, (size_t)(end - start));
     out[end - start] = 0;
+}
+/* One attempt of one hop. *retry is set for a transient failure (transport
+ * error, stall, 429, 5xx); *next receives a redirect target. */
+static int perform_once(const struct VgiExternalOptions *o, const char *method, const char *current,
+                        struct ArrowBufferView body, const char *encoding,
+                        const struct VgiExternalHeader *extra, size_t extra_count,
+                        long connect_timeout, struct ArrowBuffer *out, char **next, int *retry,
+                        unsigned attempt, struct ArrowError *error) {
+    CURL *curl = curl_easy_init();
+    if (!curl) {
+        return ENOMEM;
+    }
+    struct Download download = {0};
+    ArrowBufferInit(&download.body);
+    download.limit = o->max_fetch_bytes;
+    struct curl_slist *headers = NULL;
+    curl_easy_setopt(curl, CURLOPT_URL, current);
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    /* No CURLOPT_TIMEOUT: a whole-request deadline would kill a slow
+     * transfer that is still progressing. Connect is bounded on its own
+     * (TCP and TLS); after that the request fails only when no bytes move
+     * for timeout_seconds (a stall; on_progress). */
+    download.curl = curl;
+    download.stall_seconds = o->timeout_seconds;
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, connect_timeout);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, on_progress);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &download);
+    curl_easy_setopt(curl, CURLOPT_HTTP_CONTENT_DECODING, 0L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_body);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &download);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, receive_header);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &download);
+    if (strcmp(method, "GET")) {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.size_bytes ? body.data.data : "");
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)body.size_bytes);
+        int typed = 0;
+        for (size_t i = 0; i < extra_count; ++i)
+            if (!strcasecmp(extra[i].name, "Content-Type")) typed = 1;
+        /* A PUT sends the provider's signed content type when it has one,
+         * otherwise application/octet-stream (as the reference does). */
+        if (!typed)
+            headers = curl_slist_append(headers, !strcmp(method, "POST")
+                                                     ? "Content-Type: application/json"
+                                                     : "Content-Type: application/octet-stream");
+        if (encoding && *encoding && strcmp(encoding, "identity")) {
+            char field[96];
+            snprintf(field, sizeof(field), "Content-Encoding: %s", encoding);
+            headers = curl_slist_append(headers, field);
+        }
+        /* Signed URLs cover the length; never let curl switch to chunked
+         * transfer or stall on 100-continue. */
+        headers = curl_slist_append(headers, "Expect:");
+        for (size_t i = 0; i < extra_count; ++i) {
+            size_t length = strlen(extra[i].name) + strlen(extra[i].value) + 3;
+            char *field = malloc(length);
+            if (!field) continue;
+            snprintf(field, length, "%s: %s", extra[i].name, extra[i].value);
+            headers = curl_slist_append(headers, field);
+            free(field);
+        }
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    }
+    CURLcode result = curl_easy_perform(curl);
+    long status = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+    char *redirect = NULL;
+    int rc = 0;
+    curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL, &redirect);
+    if (download.error) {
+        rc = download.error;
+        ArrowErrorSet(error, rc == EFBIG ? "External response exceeds max_fetch_bytes"
+                                         : "Invalid external response");
+    } else if (result != CURLE_OK) {
+        /* Connect errors, resets and stalls are transient. */
+        rc = EIO;
+        *retry = 1;
+        if (download.stalled)
+            ArrowErrorSet(error,
+                          "External HTTP request stalled: no bytes moved for %u s (attempt %u)",
+                          o->timeout_seconds, attempt);
+        else
+            ArrowErrorSet(error, "External HTTP request failed (attempt %u): %s", attempt,
+                          curl_easy_strerror(result));
+    } else if (status >= 300 && status < 400 && redirect && !strcmp(method, "GET")) {
+        if (!(*next = strdup(redirect))) rc = ENOMEM;
+    } else if (status < 200 || status >= 300) {
+        if (status == 429 || status >= 500) *retry = 1;
+        /* 404 is the one status callers must tell apart: the object store
+         * contract reports a missing object distinctly from transient
+         * failures. */
+        rc = status == 404 ? ENOENT : EIO;
+        char code[64];
+        storage_error_code(&download.body, code, sizeof(code));
+        if (!strcmp(method, "PUT"))
+            ArrowErrorSet(error, "PUT to upload URL failed: HTTP %ld%s%s", status, *code ? " " : "",
+                          code);
+        else if (*code)
+            ArrowErrorSet(error, "External HTTP request returned status %ld (%s)", status, code);
+        else
+            ArrowErrorSet(error, "External HTTP request returned status %ld", status);
+    } else {
+        rc = VgiHttpDecode(download.encoding,
+                           (struct ArrowBufferView){{download.body.data}, download.body.size_bytes},
+                           o->max_decompressed_bytes, out);
+        if (rc)
+            ArrowErrorSet(error, rc == EFBIG ? "External response exceeds max_decompressed_bytes"
+                                             : "Invalid external content encoding");
+    }
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    ArrowBufferReset(&download.body);
+    return rc;
+}
+/* 0.25 s doubling per attempt, capped at 5 s, jittered to [0.5, 1.0). */
+static void storage_backoff(unsigned attempt) {
+    double delay = 0.25 * (double)(1u << (attempt < 6 ? attempt - 1 : 5));
+    if (delay > 5) delay = 5;
+    delay *= 0.5 + (double)randombytes_uniform(1000) / 2000.0;
+    VgiSleepMilliseconds((unsigned)(delay * 1000));
 }
 int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, const char *url,
                     struct ArrowBufferView body, const char *encoding,
@@ -166,102 +330,26 @@ int VgiExternalHttp(const struct VgiExternalOptions *o, const char *method, cons
             rc = ENOTSUP;
             break;
         }
-        CURL *curl = curl_easy_init();
-        if (!curl) {
-            rc = ENOMEM;
-            break;
+        const unsigned attempts = o->attempts ? o->attempts : 3;
+        const long connect_timeout =
+            (long)(o->connect_timeout_seconds ? o->connect_timeout_seconds : 30);
+        char *next = NULL;
+        for (unsigned attempt = 0;; ++attempt) {
+            if (attempt) storage_backoff(attempt);
+            int retry = 0;
+            rc = perform_once(o, method, current, body, encoding, extra, extra_count,
+                              connect_timeout, out, &next, &retry, attempt + 1, error);
+            if (!retry || attempt + 1 >= attempts) break;
         }
-        struct Download download = {0};
-        ArrowBufferInit(&download.body);
-        download.limit = o->max_fetch_bytes;
-        struct curl_slist *headers = NULL;
-        curl_easy_setopt(curl, CURLOPT_URL, current);
-        curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
-        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)o->timeout_seconds);
-        curl_easy_setopt(curl, CURLOPT_HTTP_CONTENT_DECODING, 0L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, receive_body);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &download);
-        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, receive_header);
-        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &download);
-        if (strcmp(method, "GET")) {
-            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method);
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.size_bytes ? body.data.data : "");
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)body.size_bytes);
-            int typed = 0;
-            for (size_t i = 0; i < extra_count; ++i)
-                if (!strcasecmp(extra[i].name, "Content-Type")) typed = 1;
-            /* A PUT sends the provider's signed content type when it has one,
-             * otherwise application/octet-stream (as the reference does). */
-            if (!typed)
-                headers = curl_slist_append(
-                    headers, !strcmp(method, "POST") ? "Content-Type: application/json"
-                                                     : "Content-Type: application/octet-stream");
-            if (encoding && *encoding && strcmp(encoding, "identity")) {
-                char field[96];
-                snprintf(field, sizeof(field), "Content-Encoding: %s", encoding);
-                headers = curl_slist_append(headers, field);
-            }
-            /* Signed URLs cover the length; never let curl switch to chunked
-             * transfer or stall on 100-continue. */
-            headers = curl_slist_append(headers, "Expect:");
-            for (size_t i = 0; i < extra_count; ++i) {
-                size_t length = strlen(extra[i].name) + strlen(extra[i].value) + 3;
-                char *field = malloc(length);
-                if (!field) continue;
-                snprintf(field, length, "%s: %s", extra[i].name, extra[i].value);
-                headers = curl_slist_append(headers, field);
-                free(field);
-            }
-            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        if (rc) {
+            free(next);
+            next = NULL;
+        } else if (next && hop >= o->max_redirects) {
+            free(next);
+            next = NULL;
+            rc = ELOOP;
+            ArrowErrorSet(error, "External redirect limit exceeded");
         }
-        CURLcode result = curl_easy_perform(curl);
-        long status = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-        char *redirect = NULL, *next = NULL;
-        curl_easy_getinfo(curl, CURLINFO_REDIRECT_URL, &redirect);
-        if (download.error) {
-            rc = download.error;
-            ArrowErrorSet(error, rc == EFBIG ? "External response exceeds max_fetch_bytes"
-                                             : "Invalid external response");
-        } else if (result != CURLE_OK) {
-            rc = EIO;
-            ArrowErrorSet(error, "External HTTP request failed: %s", curl_easy_strerror(result));
-        } else if (status >= 300 && status < 400 && redirect && !strcmp(method, "GET")) {
-            if (hop >= o->max_redirects) {
-                rc = ELOOP;
-                ArrowErrorSet(error, "External redirect limit exceeded");
-            } else if (!(next = strdup(redirect)))
-                rc = ENOMEM;
-        } else if (status < 200 || status >= 300) {
-            /* 404 is the one status callers must tell apart: the object store
-             * contract reports a missing object distinctly from transient
-             * failures. */
-            rc = status == 404 ? ENOENT : EIO;
-            char code[64];
-            storage_error_code(&download.body, code, sizeof(code));
-            if (!strcmp(method, "PUT"))
-                ArrowErrorSet(error, "PUT to upload URL failed: HTTP %ld%s%s", status,
-                              *code ? " " : "", code);
-            else if (*code)
-                ArrowErrorSet(error, "External HTTP request returned status %ld (%s)", status,
-                              code);
-            else
-                ArrowErrorSet(error, "External HTTP request returned status %ld", status);
-        } else {
-            rc = VgiHttpDecode(
-                download.encoding,
-                (struct ArrowBufferView){{download.body.data}, download.body.size_bytes},
-                o->max_decompressed_bytes, out);
-            if (rc)
-                ArrowErrorSet(error, rc == EFBIG
-                                         ? "External response exceeds max_decompressed_bytes"
-                                         : "Invalid external content encoding");
-        }
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-        ArrowBufferReset(&download.body);
         free(current);
         current = next;
         if (!next) break;

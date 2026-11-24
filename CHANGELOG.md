@@ -3,6 +3,23 @@
 All notable changes to `vgi-rpc-c` are listed here. The API may change between
 0.x minor releases.
 
+## [Unreleased]
+
+Storage timeouts: slow transfers no longer fail.
+
+- Every storage request (`VgiExternalHttp`: result and grant PUTs, pointer,
+  argument and StateRef fetches, the blob vendor's signed-URL PUT/GET) has a
+  30 s connect timeout and a stall timeout instead of a whole-request
+  deadline. It fails only when no bytes move for `timeout_seconds`
+  (default `VGI_RPC_STORAGE_STALL_TIMEOUT_SECONDS`, else 30), so a 300 MB
+  transfer at 2 MB/s completes in one attempt. Before, a `CURLOPT_TIMEOUT`
+  of 30 s (120 s for the vendor) cut off any large transfer on a slow link.
+- Connect errors, resets, stalls, 429 and 5xx are retried, 3 attempts in all,
+  with 0.25 s doubling backoff capped at 5 s and jittered (as vgi-rpc-python).
+  `VgiExternalOptions` gains `connect_timeout_seconds` and `attempts`.
+- The vendor's own JSON calls keep `VgiVendorOptions.timeout_seconds` (30 s)
+  as their total timeout.
+
 ## [0.2.0] — 2026-11-23
 
 Upload URL protocol v2 (wire-incompatible; pairs with vgi protocol 3.4.0).

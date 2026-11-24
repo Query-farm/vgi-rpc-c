@@ -6,6 +6,11 @@ on:
   # Python reference changes do not trigger this repo, so test against them daily.
   schedule:
     - cron: "17 10 * * *"
+env:
+  # The Python reference's protocol-3.4 branch: PROTOCOL_VERSIONS_V1 (af1c329)
+  # and its shared conformance, which main does not have yet. Back to main once
+  # the 3.4 patch wave lands there.
+  VGI_RPC_PYTHON_REF: 05bad54521092e6c58f4355c328c85860930339c
 jobs:
   conformance:
     runs-on: ubuntu-latest
@@ -19,6 +24,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Query-farm/vgi-rpc-python
+          ref: ${{ env.VGI_RPC_PYTHON_REF }}
           path: reference
       - name: Python reference and test dependencies
         run: python -m pip install -e './reference[http,conformance,mtls,external,otel]' pytest pytest-timeout ruff opentelemetry-proto
@@ -70,6 +76,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: Query-farm/vgi-rpc-python
+          ref: ${{ env.VGI_RPC_PYTHON_REF }}
           path: reference
       - name: Python reference worker
         run: python -m pip install -e './reference[http,conformance,mtls,external]'

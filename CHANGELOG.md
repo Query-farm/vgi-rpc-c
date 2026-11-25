@@ -3,7 +3,7 @@
 All notable changes to `vgi-rpc-c` are listed here. The API may change between
 0.x minor releases.
 
-## [Unreleased]
+## [0.2.1] — 2026-11-24
 
 Protocol version negotiation (vgi-rpc `PROTOCOL_VERSIONS_V1`).
 
